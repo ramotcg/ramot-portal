@@ -321,6 +321,14 @@ textarea{resize:vertical;min-height:80px;}
         </button>
       </div>
       <div class="table-wrap">
+        <div style="padding:0 20px;border-bottom:1px solid var(--lgray);">
+          <div class="client-tabs">
+            <button class="client-tab active" onclick="setClientTab('all',this)">All <span class="tab-count" id="tab-count-all">0</span></button>
+            <button class="client-tab" onclick="setClientTab('active',this)">Active <span class="tab-count" id="tab-count-active">0</span></button>
+            <button class="client-tab" onclick="setClientTab('prospect',this)">Prospects <span class="tab-count" id="tab-count-prospect">0</span></button>
+            <button class="client-tab" onclick="setClientTab('inactive',this)">Inactive <span class="tab-count" id="tab-count-inactive">0</span></button>
+          </div>
+        </div>
         <div class="table-toolbar">
           <input class="search-input" placeholder="Search clients..." oninput="filterClients(this.value)" id="client-search"/>
           <div style="font-size:12px;color:var(--gray);" id="client-count"></div>
@@ -608,6 +616,29 @@ textarea{resize:vertical;min-height:80px;}
     <div class="modal-footer">
       <button class="btn btn-outline btn-sm" onclick="closeModal('modal-add-client')">Cancel</button>
       <button class="btn btn-primary btn-sm" onclick="addClient()">Add Client</button>
+    </div>
+  </div>
+</div>
+
+<!-- ONBOARDING MODAL -->
+<div class="modal-overlay" id="modal-onboarding">
+  <div class="modal" style="width:760px;max-width:95vw;">
+    <div class="modal-header">
+      <div class="modal-title">Send Onboarding Form</div>
+      <button class="modal-close" onclick="closeModal('modal-onboarding')">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--cream2);border-radius:3px;padding:14px 18px;margin-bottom:24px;font-size:13px;color:var(--gray);line-height:1.6;">
+        Review and customize the questions below before sending. Check/uncheck individual questions, edit wording, or add custom questions. The client will only see what you approve here.
+      </div>
+      <div id="onboarding-sections" style="display:flex;flex-direction:column;gap:20px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeModal('modal-onboarding')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="generateOnboardingLink()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0 1.1.9 2 2 2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        Generate Link & Open Gmail Draft
+      </button>
     </div>
   </div>
 </div>
@@ -926,7 +957,10 @@ function renderDashboard() {
 
 // ── CLIENTS ───────────────────────────────────────────────────────────────────
 function renderClientsTable(list) {
-  list = list || clients;
+  if (!list) {
+    list = currentClientTab === 'all' ? clients : clients.filter(c => c.status === currentClientTab);
+  }
+  updateTabCounts();
   const tbody = document.getElementById('clients-table');
   tbody.innerHTML = '';
   list.forEach(c => {
@@ -945,8 +979,26 @@ function renderClientsTable(list) {
   document.getElementById('client-count').textContent = list.length + ' client' + (list.length !== 1 ? 's' : '');
 }
 
+let currentClientTab = 'all';
+
+function setClientTab(tab, el) {
+  currentClientTab = tab;
+  document.querySelectorAll('.client-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('client-search').value = '';
+  renderClientsTable();
+}
+
+function updateTabCounts() {
+  document.getElementById('tab-count-all').textContent = clients.length;
+  document.getElementById('tab-count-active').textContent = clients.filter(c=>c.status==='active').length;
+  document.getElementById('tab-count-prospect').textContent = clients.filter(c=>c.status==='prospect').length;
+  document.getElementById('tab-count-inactive').textContent = clients.filter(c=>c.status==='inactive').length;
+}
+
 function filterClients(q) {
-  const filtered = clients.filter(c =>
+  const base = currentClientTab === 'all' ? clients : clients.filter(c => c.status === currentClientTab);
+  const filtered = base.filter(c =>
     c.company.toLowerCase().includes(q.toLowerCase()) ||
     c.contact.toLowerCase().includes(q.toLowerCase()) ||
     c.email.toLowerCase().includes(q.toLowerCase())
@@ -1011,6 +1063,10 @@ function viewClient(id) {
           <button class="action-btn" onclick="goToPropForClient(${id})">
             <div class="action-btn-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--navy)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
             <div><div class="action-btn-text">Proposal</div><div class="action-btn-sub">Build a proposal PDF</div></div>
+          </button>
+          <button class="action-btn" onclick="openOnboardingModal(${id})">
+            <div class="action-btn-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--navy)" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.16 11a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.11 0h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 7.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 14.92z"/></svg></div>
+            <div><div class="action-btn-text">Send Onboarding Form</div><div class="action-btn-sub">Generate tailored link & draft email</div></div>
           </button>
           <button class="action-btn" onclick="editClient(${id})">
             <div class="action-btn-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--navy)" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
@@ -2017,6 +2073,224 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── ONBOARDING FORM ──────────────────────────────────────────────────────────
+const ONBOARDING_SECTIONS = {
+  core: {
+    title: 'Business & Engagement Setup',
+    alwaysIncluded: true,
+    questions: [
+      'Legal business name',
+      'DBA (if different from legal name)',
+      'EIN (Employer Identification Number)',
+      'State of formation',
+      'Fiscal year end (e.g. December 31, or custom)',
+      'Business mailing address',
+      'Primary contact name and title',
+      'Additional authorized contacts (name, title, email, phone)',
+      'Who should receive invoices? (name and email)',
+      'Preferred payment method (ACH, check, wire, credit card)',
+      'Preferred communication channel (email, phone, text)',
+      'Preferred meeting cadence (weekly, biweekly, monthly)',
+      'Preferred meeting format (video call, phone, in person)',
+      'Anything else we should know before we get started?',
+    ]
+  },
+  accounting: {
+    title: 'Accounting & Compliance',
+    keyword: 'accounting',
+    questions: [
+      'Current accounting software',
+      'How will you provide us access? (invite by email, share via LastPass, other)',
+      'Do you have an existing chart of accounts? (yes/no)',
+      'Do you process payroll? (yes/no — if yes, please provide provider name, pay frequency, number of employees and contractors)',
+      'Do you collect sales tax? (yes/no — if yes, which states?)',
+      'Do you have existing AP/AR processes? (briefly describe)',
+      'Primary contact for day-to-day accounting questions (name, email, phone)',
+      'Are there any known issues, backlogs, or reconciling items we should be aware of?',
+    ]
+  },
+  strategic: {
+    title: 'Strategic Finance / Fractional CFO',
+    keyword: 'strategic',
+    questions: [
+      'Do you currently produce any financial reports? (yes/no — if yes, which ones and how often?)',
+      'What KPIs or metrics do you currently track, if any?',
+      'Do you have an existing budget or financial model? (yes/no)',
+      'Do you have any lenders or investors we will need to report to? (if yes, name, reporting frequency, and requirements)',
+      'Who is the primary decision-maker for financial strategy?',
+      'Are there any upcoming financial events we should plan around? (e.g. fundraise, loan renewal, audit)',
+      'What does success look like for you in the first 90 days of our engagement?',
+    ]
+  },
+  transaction: {
+    title: 'Transaction Advisory',
+    keyword: 'diligence',
+    questions: [
+      'Transaction type (buy-side, sell-side, other — please describe)',
+      'Can you share the name of the target or counterparty at this time? (yes/no — if yes, please provide)',
+      'Estimated transaction size or value range',
+      'Target close or signing date',
+      'Do you have a data room set up? (yes/no — if yes, preferred sharing method)',
+      'Attorney on the deal (name, firm, email)',
+      'Investment banker or broker on the deal (name, firm, email)',
+      'Any other key advisors (name, role, firm)',
+      'What is the most critical open financial or accounting item right now?',
+      'Are there any known financial issues or areas of concern we should be aware of before diligence begins?',
+    ]
+  }
+};
+
+let onboardingClientId = null;
+
+function openOnboardingModal(id) {
+  onboardingClientId = id;
+  const c = clients.find(cl => cl.id == id);
+  if (!c) return;
+
+  const services = (c.services || '').toLowerCase();
+  const container = document.getElementById('onboarding-sections');
+  container.innerHTML = '';
+
+  // Determine which sections to show
+  const sectionsToShow = ['core'];
+  if (services.includes('bookkeeping') || services.includes('accounting') || services.includes('payroll') || services.includes('tax') || services.includes('month-end') || services.includes('compliance')) sectionsToShow.push('accounting');
+  if (services.includes('cfo') || services.includes('strategic') || services.includes('fractional') || services.includes('reporting') || services.includes('budget') || services.includes('forecast')) sectionsToShow.push('strategic');
+  if (services.includes('diligence') || services.includes('transaction') || services.includes('quality of earnings') || services.includes('deal') || services.includes('advisory')) sectionsToShow.push('transaction');
+
+  sectionsToShow.forEach(key => {
+    const section = ONBOARDING_SECTIONS[key];
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'border:1px solid var(--lgray);border-radius:3px;overflow:hidden;';
+
+    // Section header with select-all
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--cream2);border-bottom:1px solid var(--lgray);';
+    header.innerHTML = `
+      <input type="checkbox" id="ob-all-${key}" checked style="width:auto;cursor:pointer;" onchange="toggleOnboardingSection('${key}',this.checked)">
+      <label for="ob-all-${key}" style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--navy);font-weight:500;cursor:pointer;">${section.title}</label>
+      ${key === 'core' ? '<span style="font-size:10px;color:var(--copper);margin-left:auto;letter-spacing:1px;">Always included</span>' : ''}`;
+    wrap.appendChild(header);
+
+    // Questions
+    const qWrap = document.createElement('div');
+    section.questions.forEach((q, idx) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--lgray);';
+      row.innerHTML = `
+        <input type="checkbox" class="ob-question" data-section="${key}" checked style="width:auto;cursor:pointer;flex-shrink:0;">
+        <input type="text" value="${q}" class="ob-question-text"
+          style="flex:1;border:none;background:transparent;font-family:'Jost',sans-serif;font-size:13px;color:var(--navy);outline:none;padding:2px 0;"
+          onfocus="this.style.borderBottom='1px solid var(--copper)'"
+          onblur="this.style.borderBottom='none'">
+        <button onclick="this.closest('div').remove()" title="Remove"
+          style="background:none;border:none;color:var(--lgray);cursor:pointer;font-size:16px;padding:0 4px;flex-shrink:0;">&times;</button>`;
+      if (idx === section.questions.length - 1) row.style.borderBottom = 'none';
+      qWrap.appendChild(row);
+    });
+
+    // Add custom question input
+    const addRow = document.createElement('div');
+    addRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px dashed var(--lgray);';
+    addRow.innerHTML = `
+      <input type="text" placeholder="Add a custom question..." data-section="${key}"
+        class="ob-custom-input"
+        style="flex:1;border:1px solid var(--lgray);background:var(--cream);padding:6px 10px;font-family:'Jost',sans-serif;font-size:12px;color:var(--navy);border-radius:2px;outline:none;"
+        onkeydown="if(event.key==='Enter'){addOnboardingQuestion('${key}',this)}">
+      <button onclick="addOnboardingQuestion('${key}',this.previousElementSibling)"
+        style="background:var(--navy);color:var(--cream);border:none;padding:6px 12px;font-family:'Jost',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-radius:2px;white-space:nowrap;">
+        + Add
+      </button>`;
+    qWrap.appendChild(addRow);
+
+    wrap.appendChild(qWrap);
+    container.appendChild(wrap);
+  });
+
+  openModal('modal-onboarding');
+}
+
+function toggleOnboardingSection(key, checked) {
+  document.querySelectorAll(`.ob-question[data-section="${key}"]`).forEach(cb => cb.checked = checked);
+}
+
+function addOnboardingQuestion(key, input) {
+  const text = input.value.trim();
+  if (!text) return;
+
+  const addRow = input.closest('div[style*="dashed"]');
+  const qWrap = addRow.parentElement;
+
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--lgray);';
+  row.innerHTML = `
+    <input type="checkbox" class="ob-question" data-section="${key}" checked style="width:auto;cursor:pointer;flex-shrink:0;">
+    <input type="text" value="${text}" class="ob-question-text"
+      style="flex:1;border:none;background:transparent;font-family:'Jost',sans-serif;font-size:13px;color:var(--navy);outline:none;padding:2px 0;"
+      onfocus="this.style.borderBottom='1px solid var(--copper)'"
+      onblur="this.style.borderBottom='none'">
+    <button onclick="this.closest('div').remove()" title="Remove"
+      style="background:none;border:none;color:var(--lgray);cursor:pointer;font-size:16px;padding:0 4px;flex-shrink:0;">&times;</button>`;
+  qWrap.insertBefore(row, addRow);
+  input.value = '';
+  input.focus();
+}
+
+function generateOnboardingLink() {
+  const c = clients.find(cl => cl.id == onboardingClientId);
+  if (!c) return;
+
+  // Collect all checked questions by section
+  const sections = {};
+  document.querySelectorAll('.ob-question').forEach(cb => {
+    if (!cb.checked) return;
+    const section = cb.dataset.section;
+    const textInput = cb.nextElementSibling;
+    const text = textInput ? textInput.value.trim() : '';
+    if (!text) return;
+    if (!sections[section]) sections[section] = [];
+    sections[section].push(text);
+  });
+
+  // Encode as base64 to keep URL clean
+  const payload = {
+    client: c.company,
+    contact: c.contact,
+    sections,
+  };
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  const formURL = `https://intake.ramotconsultinggroup.com/onboarding?data=${encoded}`;
+
+  // Build Gmail draft URL
+  const subject = encodeURIComponent(`Welcome to RAMOT Consulting Group — Client Onboarding`);
+  const body = encodeURIComponent(
+`Dear ${c.contact},
+
+We're excited to get started and want to make the onboarding process as smooth as possible.
+
+To help us hit the ground running, please take a few minutes to complete your personalized onboarding form using the link below. It should take no more than 10–15 minutes.
+
+${formURL}
+
+Once we receive your responses, we'll review everything and reach out to schedule your kickoff call.
+
+In the meantime, please don't hesitate to reach out with any questions.
+
+Looking forward to working together.
+
+Warm regards,
+Avi Mafouda, CPA
+Founder & Managing Principal
+R.A.M.O.T. Consulting Group
+avi@ramotconsultinggroup.com`
+  );
+
+  const gmailURL = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(c.email)}&su=${subject}&body=${body}`;
+
+  closeModal('modal-onboarding');
+  window.open(gmailURL, '_blank');
+  showToast('Gmail draft opened.');
 }
 
 // ── INIT CLIENTS PAGE ON NAV ──────────────────────────────────────────────────
