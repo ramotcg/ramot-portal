@@ -445,12 +445,12 @@ textarea{resize:vertical;min-height:80px;}
               <option value="">— Select client —</option>
             </select>
           </div>
-          <div class="form-group"><label>Company Name</label><input type="text" id="prop-company" placeholder="Acme Holdings, LLC"/></div>
-          <div class="form-group"><label>Contact Name</label><input type="text" id="prop-contact" placeholder="John Smith"/></div>
-          <div class="form-group"><label>Industry</label><input type="text" id="prop-industry" placeholder="Wholesale Distribution"/></div>
+          <div class="form-group"><label>Company Name</label><input type="text" id="prop-company" placeholder="Select a client above to auto-fill"/></div>
+          <div class="form-group"><label>Contact Name</label><input type="text" id="prop-contact" placeholder=""/></div>
+          <div class="form-group"><label>Industry</label><input type="text" id="prop-industry" placeholder=""/></div>
           <div class="form-group"><label>Proposal Date</label><input type="text" id="prop-date" placeholder="May 14, 2026"/></div>
-          <div class="form-group full"><label>What We Heard (discovery notes)</label><textarea id="prop-heard" placeholder="Key pain points and needs identified in discovery call..."></textarea></div>
-          <div class="form-group full"><label>Scope Summary</label><textarea id="prop-scope" placeholder="Overview of services being proposed..."></textarea></div>
+          <div class="form-group full"><label>What We Heard (discovery notes)</label><textarea id="prop-heard" placeholder="Auto-populated from client intake data when a client is selected"></textarea></div>
+          <div class="form-group full"><label>Scope Summary</label><textarea id="prop-scope" placeholder="Auto-populated from client services when a client is selected"></textarea></div>
         </div>
       </div>
       <!-- Pricing type -->
@@ -1018,7 +1018,7 @@ function filterClients(q) {
 // ── CLIENT DETAIL ─────────────────────────────────────────────────────────────
 function viewClient(id) {
   viewingClientId = id;
-  const c = clients.find(cl => cl.id === id);
+  const c = clients.find(cl => String(cl.id) === String(id));
   if (!c) return;
   const html = `
     <div class="page-header">
@@ -1093,7 +1093,7 @@ function viewClient(id) {
 }
 
 function goToELForClient(id) {
-  const c = clients.find(cl => cl.id === id);
+  const c = clients.find(cl => String(cl.id) === String(id));
   if (!c) return;
   showPage('engagement');
   setTimeout(() => {
@@ -1136,7 +1136,7 @@ function goToPropForClient(id) {
 
 function deleteClient(id) {
   if (!confirm('Remove this client? This cannot be undone.')) return;
-  clients = clients.filter(c => c.id !== id);
+  clients = clients.filter(c => String(c.id) !== String(id));
   deleteClientFromSheet(id).then(() => showToast('Sheet updated.'));
   showToast('Client removed.');
   showPage('clients');
@@ -1146,7 +1146,7 @@ function deleteClient(id) {
 }
 
 function editClient(id) {
-  const c = clients.find(cl => cl.id === id);
+  const c = clients.find(cl => String(cl.id) === String(id));
   if (!c) return;
   document.getElementById('nc-company').value      = c.company      || '';
   document.getElementById('nc-contact').value      = c.contact      || '';
@@ -1175,7 +1175,7 @@ function editClient(id) {
 }
 
 function saveEditClient(id) {
-  const idx = clients.findIndex(c => c.id === id);
+  const idx = clients.findIndex(c => String(c.id) === String(id));
   if (idx < 0) return;
   clients[idx] = {
     ...clients[idx],
