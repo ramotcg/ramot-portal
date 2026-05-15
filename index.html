@@ -1284,12 +1284,58 @@ function loadClientIntoEL() {
 }
 
 function loadClientIntoProp() {
-  const id = parseInt(document.getElementById('prop-client-select').value);
+  const id = document.getElementById('prop-client-select').value;
   if (!id) return;
-  const c = clients.find(cl => cl.id === id);
+  const c = clients.find(cl => String(cl.id) === String(id));
   if (!c) return;
-  document.getElementById('prop-company').value = c.company;
-  document.getElementById('prop-contact').value = c.contact;
+
+  // Basic fields
+  document.getElementById('prop-company').value = c.company || '';
+  document.getElementById('prop-contact').value = c.contact || '';
+  document.getElementById('prop-industry').value = c.industry || '';
+
+  // Auto-build "What We Heard" from intake data
+  const heardParts = [
+    c.drivingNeed || '',
+    c.outcomes || '',
+    c.complexityFactors && c.complexityFactors !== 'None' ? `Complexity: ${c.complexityFactors}` : '',
+    c.revenue ? `Annual revenue: ${c.revenue}` : '',
+    c.software ? `Current software: ${c.software}` : '',
+    c.booksCurrent && c.booksCurrent !== 'Up to date' ? `Books status: ${c.booksCurrent}` : '',
+    c.employees ? `Employees: ${c.employees}` : '',
+  ].filter(Boolean);
+  document.getElementById('prop-heard').value = heardParts.join('\n');
+
+  // Scope from services
+  document.getElementById('prop-scope').value = c.services || '';
+
+  // Auto-select pricing structure based on billingType
+  const billingType = c.billingType || 'retainer';
+  let pricingType = 'single';
+  if (billingType === 'retainer') pricingType = 'single';
+  else if (billingType === 'fixed') pricingType = 'project';
+  else if (billingType === 'hourly') pricingType = 'single';
+
+  const pricingCard = document.querySelector(`.pricing-type-card[onclick*="'${pricingType}'"]`);
+  if (pricingCard) selectPricingType(pricingType, pricingCard);
+
+  // Pre-fill pricing fields
+  const amt = (c.billingAmt || '').replace(/\/mo(nth)?\.?/i, '').trim();
+  if (pricingType === 'single') {
+    document.getElementById('single-price').value = amt;
+    document.getElementById('single-cadence').value = billingType === 'retainer' ? 'Monthly' : billingType === 'hourly' ? 'Hourly' : 'Per project';
+    // Pre-fill included services
+    document.getElementById('single-items').value = (c.services || '').split(',').map(s => s.trim()).join('\n');
+  } else if (pricingType === 'project') {
+    document.getElementById('proj-total').value = amt;
+  }
+
+  // If budget range available and no billing amount, use budget
+  if (!amt && c.budget && c.budget !== 'Project-based / TBD') {
+    if (pricingType === 'single') document.getElementById('single-price').value = c.budget;
+  }
+
+  showToast(`Loaded ${c.company}`);
 }
 
 // ── ENGAGEMENT LETTER ─────────────────────────────────────────────────────────
