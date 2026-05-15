@@ -2264,29 +2264,25 @@ function generateOnboardingLink() {
 
   // Build Gmail draft URL
   const subject = encodeURIComponent(`Welcome to RAMOT Consulting Group — Client Onboarding`);
+  // Copy link to clipboard as well for easy access
+  navigator.clipboard && navigator.clipboard.writeText(formURL).catch(()=>{});
+
   const body = encodeURIComponent(
 `Dear ${c.contact},
 
 We're excited to get started and want to make the onboarding process as smooth as possible.
 
-To help us hit the ground running, please take a few minutes to complete your personalized onboarding form using the link below. It should take no more than 10–15 minutes.
+To help us hit the ground running, please take a few minutes to complete your personalized onboarding form. It should take no more than 10–15 minutes.
 
-${formURL}
+[ Paste onboarding link here — link has been copied to your clipboard ]
 
 Once we receive your responses, we'll review everything and reach out to schedule your kickoff call.
 
-In the meantime, please don't hesitate to reach out with any questions.
-
-Looking forward to working together.
-
-Warm regards,
-Avi Mafouda, CPA
-Founder & Managing Principal
-R.A.M.O.T. Consulting Group
-avi@ramotconsultinggroup.com`
+In the meantime, please don't hesitate to reach out with any questions.`
   );
 
-  const gmailURL = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(c.email)}&su=${subject}&body=${body}`;
+  // Open in ramotconsultinggroup.com Gmail account specifically
+  const gmailURL = `https://mail.google.com/mail/u/0/?authuser=${encodeURIComponent(currentUser.email)}&view=cm&fs=1&to=${encodeURIComponent(c.email)}&su=${subject}&body=${body}`;
 
   closeModal('modal-onboarding');
   window.open(gmailURL, '_blank');
