@@ -693,7 +693,7 @@ async function loadClientsFromSheet() {
     return;
   }
   showToast('Loading clients...');
-  const data = await sheetsRequest('GET', `/values/${SHEET_NAME}!A:K`);
+  const data = await sheetsRequest('GET', `/values/${SHEET_NAME}!A:X`);
   if (!data || !data.values || data.values.length < 2) {
     // Sheet is empty — seed it with ATN Inc
     clients = [...SEED_CLIENTS];
