@@ -755,25 +755,56 @@ function initGoogleAuth(tokenOnly) {
     return;
   }
   if (!tokenOnly) {
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleGoogleAuth,
-    });
-    google.accounts.id.renderButton(
-      document.getElementById('g_id_signin'),
-      { theme:'outline', size:'large', text:'signin_with', shape:'rectangular', width:280 }
-    );
-    google.accounts.id.prompt();
-  } else {
-    // User already logged in — just get a fresh Sheets token
+    // Use token client flow instead of One Tap — shows full account picker
     const tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: SHEETS_SCOPE,
+      scope: 'openid email profile ' + SHEETS_SCOPE,
+      prompt: 'select_account',
+      callback: (tokenResponse) => {
+        if (tokenResponse.error) {
+          document.getElementById('auth-error').style.display = 'block';
+          return;
+        }
+        accessToken = tokenResponse.access_token;
+        // Fetch user info to verify domain
+        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: 'Bearer ' + accessToken }
+        }).then(r => r.json()).then(profile => {
+          if (!profile.email.endsWith('@' + ALLOWED_DOMAIN)) {
+            document.getElementById('auth-error').style.display = 'block';
+            accessToken = null;
+            return;
+          }
+          const nameParts = (profile.name || profile.email).split(' ');
+          currentUser = {
+            name: profile.name || profile.email,
+            email: profile.email,
+            initials: (nameParts[0][0] + (nameParts[1] ? nameParts[1][0] : '')).toUpperCase(),
+          };
+          sessionStorage.setItem('ramot_user', JSON.stringify(currentUser));
+          bootApp();
+        });
+      },
+    });
+
+    // Replace the Google sign-in button with our own that triggers the picker
+    const signinDiv = document.getElementById('g_id_signin');
+    signinDiv.innerHTML = '';
+    const btn = document.createElement('button');
+    btn.textContent = 'Sign in with Google';
+    btn.style.cssText = 'padding:10px 24px;background:var(--navy);color:var(--cream);border:none;border-radius:3px;font-family:Jost,sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;width:100%;margin-top:8px;';
+    btn.onmouseover = () => btn.style.background = 'var(--copper)';
+    btn.onmouseout = () => btn.style.background = 'var(--navy)';
+    btn.onclick = () => tokenClient.requestAccessToken({ prompt: 'select_account' });
+    signinDiv.appendChild(btn);
+  } else {
+    // User already logged in — silently get a fresh Sheets token
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: 'openid email profile ' + SHEETS_SCOPE,
       prompt: '',
       callback: (tokenResponse) => {
-        if (!tokenResponse.error) {
-          accessToken = tokenResponse.access_token;
-        }
+        if (!tokenResponse.error) accessToken = tokenResponse.access_token;
         bootApp();
       },
     });
