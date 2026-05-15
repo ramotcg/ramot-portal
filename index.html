@@ -701,9 +701,11 @@ async function loadClientsFromSheet() {
     return;
   }
   // Skip header row, map rows to client objects
+  // Pad rows to full length in case trailing empty cells are omitted by Sheets API
   clients = data.values.slice(1).map(row => {
+    const padded = [...row, ...Array(SHEET_COLS.length).fill('')].slice(0, SHEET_COLS.length);
     const obj = {};
-    SHEET_COLS.forEach((col, i) => { obj[col] = row[i] || ''; });
+    SHEET_COLS.forEach((col, i) => { obj[col] = padded[i] || ''; });
     return obj;
   });
 }
