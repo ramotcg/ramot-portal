@@ -2085,7 +2085,7 @@ function showToast(msg) {
 }
 
 // ── ONBOARDING FORM ──────────────────────────────────────────────────────────
-const ONBOARDING_SECTIONS = {
+const ONBOARDING_SECTIONS_BUSINESS = {
   core: {
     title: 'Business & Engagement Setup',
     alwaysIncluded: true,
@@ -2151,6 +2151,60 @@ const ONBOARDING_SECTIONS = {
   }
 };
 
+const ONBOARDING_SECTIONS_PERSONAL = {
+  contact: {
+    title: 'Contact & Filing Setup',
+    alwaysIncluded: true,
+    questions: [
+      'Legal name (as it appears on tax returns)',
+      'Date of birth',
+      'Current mailing address',
+      'Filing status (Single, Married Filing Jointly, Married Filing Separately, Head of Household)',
+      'Spouse legal name and date of birth (if applicable)',
+      'Number of dependents and their names and dates of birth (if applicable)',
+      'States you lived or worked in during the tax year',
+      'Who should receive correspondence from us? (name, email, phone)',
+      'Preferred communication channel (email, phone, text)',
+      'Preferred meeting format (video call, phone, in person)',
+    ]
+  },
+  income: {
+    title: 'Income & Documents',
+    alwaysIncluded: true,
+    questions: [
+      'What income sources did you have this tax year? (W-2, 1099-NEC, rental income, investment income, self-employment, retirement/pension, K-1, cryptocurrency, other)',
+      'Do you have all your tax documents ready? (W-2s, 1099s, brokerage statements, etc.)',
+      'Did you sell any investments, stocks, or real property this year? (yes/no — if yes, please describe)',
+      'Do you have any foreign income or foreign bank accounts?',
+      'Did you receive any IRS or state tax notices this year? (yes/no — if yes, please describe)',
+    ]
+  },
+  deductions: {
+    title: 'Deductions & Credits',
+    alwaysIncluded: true,
+    questions: [
+      'Do you own a home? (yes/no — if yes, do you have a mortgage?)',
+      'Did you make any charitable contributions this year? (yes/no — approximate total if yes)',
+      'Do you have significant unreimbursed medical expenses?',
+      'Do you contribute to a retirement account? (IRA, Roth IRA, Solo 401k, SEP-IRA — please specify)',
+      'Do you have childcare expenses? (yes/no — if yes, provider name and amount)',
+      'Do you have education expenses or student loan interest?',
+      'Do you operate a business or have self-employment income? (yes/no — if yes, do you have a home office or vehicle used for business?)',
+    ]
+  },
+  priorYear: {
+    title: 'Prior Year & Logistics',
+    alwaysIncluded: true,
+    questions: [
+      'Who prepared your taxes last year?',
+      'Can you provide a copy of last year\'s return? (yes/no)',
+      'Are there any prior year amendments or unfiled returns we should know about?',
+      'Did you have any major life changes this year? (marriage, divorce, new child, home purchase or sale, job change, retirement — please describe)',
+      'Is there anything else we should know before we get started?',
+    ]
+  }
+};
+
 let onboardingClientId = null;
 
 function openOnboardingModal(id) {
@@ -2159,18 +2213,111 @@ function openOnboardingModal(id) {
   if (!c) return;
 
   const services = (c.services || '').toLowerCase();
+
+  // Detect onboarding type
+  const looksPersonal = services.includes('personal tax') || services.includes('individual tax') || services.includes('tax return') || services.includes('personal') || c.company === c.contact;
+  const detectedType = looksPersonal ? 'personal' : 'business';
+
+  // Show confirmation modal first
+  showOnboardingTypeConfirm(id, c, detectedType);
+}
+
+function showOnboardingTypeConfirm(id, c, detectedType) {
+  const existing = document.getElementById('modal-onboarding-type');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay open';
+  modal.id = 'modal-onboarding-type';
+  modal.innerHTML = `
+    <div class="modal" style="width:480px;">
+      <div class="modal-header">
+        <div class="modal-title">Onboarding Type</div>
+        <button class="modal-close" onclick="document.getElementById('modal-onboarding-type').remove()">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:var(--gray);margin-bottom:20px;line-height:1.6;">
+          Confirm the onboarding type for <strong>${c.company}</strong>. This determines which questions are sent.
+        </p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div onclick="selectOnboardingType('business', ${id})" id="type-business"
+            style="border:2px solid ${detectedType==='business'?'var(--copper)':'var(--lgray)'};background:${detectedType==='business'?'rgba(176,125,74,0.06)':'var(--white)'};border-radius:3px;padding:20px;cursor:pointer;text-align:center;transition:all 0.15s;">
+            <div style="font-size:24px;margin-bottom:8px;">🏢</div>
+            <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--navy);font-weight:500;">Business</div>
+            <div style="font-size:11px;color:var(--gray);margin-top:4px;">Accounting, CFO, Advisory</div>
+            ${detectedType==='business'?'<div style="font-size:10px;color:var(--copper);margin-top:8px;letter-spacing:1px;">DETECTED</div>':''}
+          </div>
+          <div onclick="selectOnboardingType('personal', ${id})" id="type-personal"
+            style="border:2px solid ${detectedType==='personal'?'var(--copper)':'var(--lgray)'};background:${detectedType==='personal'?'rgba(176,125,74,0.06)':'var(--white)'};border-radius:3px;padding:20px;cursor:pointer;text-align:center;transition:all 0.15s;">
+            <div style="font-size:24px;margin-bottom:8px;">🧾</div>
+            <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--navy);font-weight:500;">Personal Tax</div>
+            <div style="font-size:11px;color:var(--gray);margin-top:4px;">Individual tax return</div>
+            ${detectedType==='personal'?'<div style="font-size:10px;color:var(--copper);margin-top:8px;letter-spacing:1px;">DETECTED</div>':''}
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('modal-onboarding-type').remove()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="confirmOnboardingType(${id})">Continue →</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+  // Store selected type
+  modal.dataset.selectedType = detectedType;
+}
+
+let selectedOnboardingType = 'business';
+
+function selectOnboardingType(type, id) {
+  selectedOnboardingType = type;
+  ['business','personal'].forEach(t => {
+    const el = document.getElementById('type-' + t);
+    if (!el) return;
+    el.style.border = `2px solid ${t===type?'var(--copper)':'var(--lgray)'}`;
+    el.style.background = t===type?'rgba(176,125,74,0.06)':'var(--white)';
+  });
+}
+
+function confirmOnboardingType(id) {
+  document.getElementById('modal-onboarding-type') && document.getElementById('modal-onboarding-type').remove();
+  buildOnboardingModal(id, selectedOnboardingType);
+}
+
+function buildOnboardingModal(id, onboardingType) {
+  onboardingClientId = id;
+  const c = clients.find(cl => cl.id == id);
+  if (!c) return;
+
+  const services = (c.services || '').toLowerCase();
   const container = document.getElementById('onboarding-sections');
   container.innerHTML = '';
 
-  // Always show all sections — pre-check based on services, others available to add
-  const isAccounting = services.includes('bookkeeping') || services.includes('accounting') || services.includes('payroll') || services.includes('tax') || services.includes('month-end') || services.includes('compliance');
-  const isStrategic  = services.includes('cfo') || services.includes('strategic') || services.includes('fractional') || services.includes('reporting') || services.includes('budget') || services.includes('forecast');
-  const isTransaction = services.includes('diligence') || services.includes('transaction') || services.includes('quality of earnings') || services.includes('deal') || services.includes('advisory');
-  const sectionDefaults = { core: true, accounting: isAccounting, strategic: isStrategic, transaction: isTransaction };
-  const sectionsToShow = ['core', 'accounting', 'strategic', 'transaction'];
+  // Update modal title
+  document.querySelector('#modal-onboarding .modal-title').textContent =
+    `Send Onboarding Form — ${onboardingType === 'personal' ? 'Personal Tax' : 'Business'}`;
+
+  // Store type on modal for use in generateOnboardingLink
+  document.getElementById('modal-onboarding').dataset.onboardingType = onboardingType;
+
+  let sectionDefaults, sectionsToShow, sectionData;
+
+  if (onboardingType === 'personal') {
+    sectionData = ONBOARDING_SECTIONS_PERSONAL;
+    sectionsToShow = ['contact', 'income', 'deductions', 'priorYear'];
+    sectionDefaults = { contact: true, income: true, deductions: true, priorYear: true };
+  } else {
+    sectionData = ONBOARDING_SECTIONS_BUSINESS;
+    const isAccounting = services.includes('bookkeeping') || services.includes('accounting') || services.includes('payroll') || services.includes('tax') || services.includes('month-end') || services.includes('compliance');
+    const isStrategic  = services.includes('cfo') || services.includes('strategic') || services.includes('fractional') || services.includes('reporting') || services.includes('budget') || services.includes('forecast');
+    const isTransaction = services.includes('diligence') || services.includes('transaction') || services.includes('quality of earnings') || services.includes('deal') || services.includes('advisory');
+    sectionDefaults = { core: true, accounting: isAccounting, strategic: isStrategic, transaction: isTransaction };
+    sectionsToShow = ['core', 'accounting', 'strategic', 'transaction'];
+  }
 
   sectionsToShow.forEach(key => {
-    const section = ONBOARDING_SECTIONS[key];
+    const section = sectionData[key];
     const wrap = document.createElement('div');
     wrap.style.cssText = 'border:1px solid var(--lgray);border-radius:3px;overflow:hidden;';
 
@@ -2286,8 +2433,11 @@ function generateOnboardingLink() {
     }
   }
 
+  // Include onboarding type in payload
+  const onboardingType = document.getElementById('modal-onboarding').dataset.onboardingType || 'business';
+
   // Encode using URL-safe base64
-  const payload = { client: c.company, contact: c.contact, sections };
+  const payload = { client: c.company, contact: c.contact, email: c.email, onboardingType, sections };
   const jsonStr = JSON.stringify(payload);
   // Use TextEncoder for proper UTF-8 handling
   const bytes = new TextEncoder().encode(jsonStr);
