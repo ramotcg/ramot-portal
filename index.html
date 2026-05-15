@@ -2162,11 +2162,12 @@ function openOnboardingModal(id) {
   const container = document.getElementById('onboarding-sections');
   container.innerHTML = '';
 
-  // Determine which sections to show
-  const sectionsToShow = ['core'];
-  if (services.includes('bookkeeping') || services.includes('accounting') || services.includes('payroll') || services.includes('tax') || services.includes('month-end') || services.includes('compliance')) sectionsToShow.push('accounting');
-  if (services.includes('cfo') || services.includes('strategic') || services.includes('fractional') || services.includes('reporting') || services.includes('budget') || services.includes('forecast')) sectionsToShow.push('strategic');
-  if (services.includes('diligence') || services.includes('transaction') || services.includes('quality of earnings') || services.includes('deal') || services.includes('advisory')) sectionsToShow.push('transaction');
+  // Always show all sections — pre-check based on services, others available to add
+  const isAccounting = services.includes('bookkeeping') || services.includes('accounting') || services.includes('payroll') || services.includes('tax') || services.includes('month-end') || services.includes('compliance');
+  const isStrategic  = services.includes('cfo') || services.includes('strategic') || services.includes('fractional') || services.includes('reporting') || services.includes('budget') || services.includes('forecast');
+  const isTransaction = services.includes('diligence') || services.includes('transaction') || services.includes('quality of earnings') || services.includes('deal') || services.includes('advisory');
+  const sectionDefaults = { core: true, accounting: isAccounting, strategic: isStrategic, transaction: isTransaction };
+  const sectionsToShow = ['core', 'accounting', 'strategic', 'transaction'];
 
   sectionsToShow.forEach(key => {
     const section = ONBOARDING_SECTIONS[key];
@@ -2176,10 +2177,11 @@ function openOnboardingModal(id) {
     // Section header with select-all
     const header = document.createElement('div');
     header.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--cream2);border-bottom:1px solid var(--lgray);';
+    const isChecked = sectionDefaults[key];
     header.innerHTML = `
-      <input type="checkbox" id="ob-all-${key}" checked style="width:auto;cursor:pointer;" onchange="toggleOnboardingSection('${key}',this.checked)">
+      <input type="checkbox" id="ob-all-${key}" ${isChecked ? 'checked' : ''} style="width:auto;cursor:pointer;" onchange="toggleOnboardingSection('${key}',this.checked)">
       <label for="ob-all-${key}" style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--navy);font-weight:500;cursor:pointer;">${section.title}</label>
-      ${key === 'core' ? '<span style="font-size:10px;color:var(--copper);margin-left:auto;letter-spacing:1px;">Always included</span>' : ''}`;
+      ${key === 'core' ? '<span style="font-size:10px;color:var(--copper);margin-left:auto;letter-spacing:1px;">Always included</span>' : !isChecked ? '<span style="font-size:10px;color:var(--gray);margin-left:auto;letter-spacing:1px;">Not in current services</span>' : ''}`;
     wrap.appendChild(header);
 
     // Questions
@@ -2188,7 +2190,7 @@ function openOnboardingModal(id) {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--lgray);';
       row.innerHTML = `
-        <input type="checkbox" class="ob-question" data-section="${key}" checked style="width:auto;cursor:pointer;flex-shrink:0;">
+        <input type="checkbox" class="ob-question" data-section="${key}" ${isChecked ? 'checked' : ''} style="width:auto;cursor:pointer;flex-shrink:0;">
         <input type="text" value="${q}" class="ob-question-text"
           style="flex:1;border:none;background:transparent;font-family:'Jost',sans-serif;font-size:13px;color:var(--navy);outline:none;padding:2px 0;"
           onfocus="this.style.borderBottom='1px solid var(--copper)'"
@@ -2252,31 +2254,52 @@ function generateOnboardingLink() {
 
   // Collect all checked questions by section
   const sections = {};
+  const includedServices = [];
+  const serviceMap = {
+    accounting: 'Accounting & Compliance',
+    strategic: 'Strategic Finance / Fractional CFO',
+    transaction: 'Transaction Advisory',
+  };
+
   document.querySelectorAll('.ob-question').forEach(cb => {
     if (!cb.checked) return;
     const section = cb.dataset.section;
     const textInput = cb.nextElementSibling;
     const text = textInput ? textInput.value.trim() : '';
     if (!text) return;
-    if (!sections[section]) sections[section] = [];
+    if (!sections[section]) {
+      sections[section] = [];
+      if (section !== 'core' && serviceMap[section]) includedServices.push(serviceMap[section]);
+    }
     sections[section].push(text);
   });
 
-  // Encode as base64 to keep URL clean
-  const payload = {
-    client: c.company,
-    contact: c.contact,
-    sections,
-  };
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  // Auto-update client services in sheet if new sections were added
+  const currentServices = c.services || '';
+  const newServices = includedServices.filter(s => !currentServices.includes(s));
+  if (newServices.length > 0) {
+    const idx = clients.findIndex(cl => cl.id == onboardingClientId);
+    if (idx >= 0) {
+      const updatedServices = [currentServices, ...newServices].filter(Boolean).join(', ');
+      clients[idx].services = updatedServices;
+      updateClientInSheet(clients[idx]);
+    }
+  }
+
+  // Encode using URL-safe base64
+  const payload = { client: c.company, contact: c.contact, sections };
+  const jsonStr = JSON.stringify(payload);
+  // Use TextEncoder for proper UTF-8 handling
+  const bytes = new TextEncoder().encode(jsonStr);
+  let binary = '';
+  bytes.forEach(b => binary += String.fromCharCode(b));
+  const encoded = btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   const formURL = `https://intake.ramotconsultinggroup.com/onboarding?data=${encoded}`;
 
   // Copy link to clipboard
   navigator.clipboard && navigator.clipboard.writeText(formURL).catch(()=>{});
 
   closeModal('modal-onboarding');
-
-  // Show link modal instead of trying to pre-fill Gmail
   showOnboardingLinkModal(c, formURL);
 }
 
@@ -2298,14 +2321,33 @@ async function showOnboardingLinkModal(c, formURL) {
 }
 
 async function createGmailDraft(c, formURL) {
-  const subject = 'Welcome to RAMOT Consulting Group — Client Onboarding';
+  const subject = 'Welcome to RAMOT Consulting Group - Client Onboarding';
+
+  // Fetch Gmail signature
+  let signatureHTML = '';
+  try {
+    const sigRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs', {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+    if (sigRes.ok) {
+      const sigData = await sigRes.json();
+      const defaultSendAs = sigData.sendAs && sigData.sendAs.find(s => s.isDefault);
+      if (defaultSendAs && defaultSendAs.signature) {
+        signatureHTML = `<br><br><div>${defaultSendAs.signature}</div>`;
+      }
+    }
+  } catch(e) {
+    console.log('Could not fetch signature:', e);
+  }
+
   const htmlBody = `
 <p>Dear ${c.contact},</p>
-<p>We're excited to get started and want to make the onboarding process as smooth as possible.</p>
-<p>To help us hit the ground running, please take a few minutes to complete your personalized onboarding form. It should take no more than 10–15 minutes.</p>
+<p>We&#39;re excited to get started and want to make the onboarding process as smooth as possible.</p>
+<p>To help us hit the ground running, please take a few minutes to complete your personalized onboarding form. It should take no more than 10&#8211;15 minutes.</p>
 <p><a href="${formURL}" style="color:#B07D4A;font-weight:500;">Client Onboarding Form</a></p>
-<p>Once we receive your responses, we'll review everything and reach out to schedule your kickoff call.</p>
-<p>In the meantime, please don't hesitate to reach out with any questions.</p>`;
+<p>Once we receive your responses, we&#39;ll review everything and reach out to schedule your kickoff meeting.</p>
+<p>In the meantime, please don&#39;t hesitate to reach out with any questions.</p>
+${signatureHTML}`;
 
   // Build RFC 2822 email message
   const message = [
@@ -2317,9 +2359,11 @@ async function createGmailDraft(c, formURL) {
     htmlBody,
   ].join('\r\n');
 
-  // Base64url encode
-  const encoded = btoa(unescape(encodeURIComponent(message)))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  // Base64url encode using TextEncoder for proper UTF-8
+  const msgBytes = new TextEncoder().encode(message);
+  let msgBinary = '';
+  msgBytes.forEach(b => msgBinary += String.fromCharCode(b));
+  const encoded = btoa(msgBinary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts', {
     method: 'POST',
