@@ -1108,30 +1108,27 @@ function goToELForClient(id) {
 }
 
 function goToPropForClient(id) {
-  const c = clients.find(cl => cl.id === id);
+  const c = clients.find(cl => String(cl.id) === String(id));
   if (!c) return;
   showPage('proposal');
   setTimeout(() => {
-    document.getElementById('prop-company').value = c.company;
-    document.getElementById('prop-contact').value = c.contact;
-    document.getElementById('prop-industry').value = c.industry || '';
-    // Pre-fill "What We Heard" from intake discovery fields
-    const heard = [
-      c.drivingNeed   ? c.drivingNeed   : '',
-      c.outcomes      ? c.outcomes      : '',
-      c.complexityFactors && c.complexityFactors !== 'None' ? `Complexity factors: ${c.complexityFactors}` : '',
-      c.revenue       ? `Annual revenue: ${c.revenue}` : '',
-      c.software      ? `Current software: ${c.software}` : '',
-      c.booksCurrent  ? `Books status: ${c.booksCurrent}` : '',
-    ].filter(Boolean).join('\n');
-    document.getElementById('prop-heard').value = heard;
-    // Pre-fill scope from selected services
-    document.getElementById('prop-scope').value = c.services || '';
-    // Pre-fill budget into pricing if single price type
-    if (c.budget && c.budget !== 'Project-based / TBD') {
-      document.getElementById('single-price').value = c.budget;
-    }
-  }, 50);
+    const sel = document.getElementById('prop-client-select');
+    sel.value = String(c.id);
+    loadClientIntoProp();
+  }, 100);
+
+}
+
+function goToPropForClient(id) {
+  const c = clients.find(cl => String(cl.id) === String(id));
+  if (!c) return;
+  showPage('proposal');
+  setTimeout(() => {
+    const sel = document.getElementById('prop-client-select');
+    sel.value = String(c.id);
+    loadClientIntoProp();
+  }, 100);
+
 }
 
 function deleteClient(id) {
