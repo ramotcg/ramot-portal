@@ -663,6 +663,7 @@ const ALLOWED_DOMAIN   = 'ramotconsultinggroup.com';
 const GOOGLE_CLIENT_ID = '748542419964-cen01poe01durfbdj37c00n660p895v4.apps.googleusercontent.com';
 const SHEET_ID         = '1wlZYmfFOchbr8Wphpriocat6XRJZ_FBKEqqR5yaHitc';
 const SHEETS_SCOPE     = 'https://www.googleapis.com/auth/spreadsheets';
+const GMAIL_SCOPE      = 'https://www.googleapis.com/auth/gmail.compose';
 
 let currentUser  = null;
 let accessToken  = null;   // Google OAuth access token for Sheets API
@@ -799,7 +800,7 @@ function initGoogleAuth(tokenOnly) {
     // Use token client flow instead of One Tap — shows full account picker
     const tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: 'openid email profile ' + SHEETS_SCOPE,
+      scope: 'openid email profile ' + SHEETS_SCOPE + ' ' + GMAIL_SCOPE,
       prompt: 'select_account',
       callback: (tokenResponse) => {
         if (tokenResponse.error) {
@@ -842,7 +843,7 @@ function initGoogleAuth(tokenOnly) {
     // User already logged in — silently get a fresh Sheets token
     const tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: 'openid email profile ' + SHEETS_SCOPE,
+      scope: 'openid email profile ' + SHEETS_SCOPE + ' ' + GMAIL_SCOPE,
       prompt: '',
       callback: (tokenResponse) => {
         if (!tokenResponse.error) accessToken = tokenResponse.access_token;
@@ -2270,31 +2271,96 @@ function generateOnboardingLink() {
   const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
   const formURL = `https://intake.ramotconsultinggroup.com/onboarding?data=${encoded}`;
 
-  // Build Gmail draft URL
-  const subject = encodeURIComponent(`Welcome to RAMOT Consulting Group — Client Onboarding`);
-  // Copy link to clipboard as well for easy access
+  // Copy link to clipboard
   navigator.clipboard && navigator.clipboard.writeText(formURL).catch(()=>{});
 
-  const body = encodeURIComponent(
-`Dear ${c.contact},
-
-We're excited to get started and want to make the onboarding process as smooth as possible.
-
-To help us hit the ground running, please take a few minutes to complete your personalized onboarding form. It should take no more than 10–15 minutes.
-
-[ Paste onboarding link here — link has been copied to your clipboard ]
-
-Once we receive your responses, we'll review everything and reach out to schedule your kickoff call.
-
-In the meantime, please don't hesitate to reach out with any questions.`
-  );
-
-  // Open in ramotconsultinggroup.com Gmail account specifically
-  const gmailURL = `https://mail.google.com/mail/u/0/?authuser=${encodeURIComponent(currentUser.email)}&view=cm&fs=1&to=${encodeURIComponent(c.email)}&su=${subject}&body=${body}`;
-
   closeModal('modal-onboarding');
-  window.open(gmailURL, '_blank');
-  showToast('Gmail draft opened.');
+
+  // Show link modal instead of trying to pre-fill Gmail
+  showOnboardingLinkModal(c, formURL);
+}
+
+async function showOnboardingLinkModal(c, formURL) {
+  showToast('Creating Gmail draft...');
+  try {
+    await createGmailDraft(c, formURL);
+    showToast('Draft created — check your Gmail Drafts folder.');
+    // Open Gmail drafts in new tab
+    window.open(
+      `https://mail.google.com/mail/u/0/?authuser=${encodeURIComponent(currentUser.email)}#drafts`,
+      '_blank'
+    );
+  } catch(err) {
+    console.error('Gmail draft error:', err);
+    // Fallback — show link modal
+    showLinkFallbackModal(c, formURL);
+  }
+}
+
+async function createGmailDraft(c, formURL) {
+  const subject = 'Welcome to RAMOT Consulting Group — Client Onboarding';
+  const htmlBody = `
+<p>Dear ${c.contact},</p>
+<p>We're excited to get started and want to make the onboarding process as smooth as possible.</p>
+<p>To help us hit the ground running, please take a few minutes to complete your personalized onboarding form. It should take no more than 10–15 minutes.</p>
+<p><a href="${formURL}" style="color:#B07D4A;font-weight:500;">Client Onboarding Form</a></p>
+<p>Once we receive your responses, we'll review everything and reach out to schedule your kickoff call.</p>
+<p>In the meantime, please don't hesitate to reach out with any questions.</p>`;
+
+  // Build RFC 2822 email message
+  const message = [
+    `To: ${c.email}`,
+    `Subject: ${subject}`,
+    'Content-Type: text/html; charset=UTF-8',
+    'MIME-Version: 1.0',
+    '',
+    htmlBody,
+  ].join('\r\n');
+
+  // Base64url encode
+  const encoded = btoa(unescape(encodeURIComponent(message)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ message: { raw: encoded } }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gmail API error: ${res.status} ${err}`);
+  }
+  return res.json();
+}
+
+function showLinkFallbackModal(c, formURL) {
+  const existing = document.getElementById('modal-onboarding-link');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay open';
+  modal.id = 'modal-onboarding-link';
+  modal.innerHTML = `
+    <div class="modal" style="width:520px;">
+      <div class="modal-header">
+        <div class="modal-title">Onboarding Link</div>
+        <button class="modal-close" onclick="document.getElementById('modal-onboarding-link').remove()">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:#fff0f0;border:1px solid #ffcccc;border-radius:3px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#c00;">
+          Could not create Gmail draft automatically. Copy the link below and paste it into Gmail manually.
+        </div>
+        <div style="background:var(--white);border:1px solid var(--lgray);border-radius:3px;padding:12px 16px;font-size:11px;color:var(--gray);word-break:break-all;margin-bottom:16px;">
+          ${formURL}
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="navigator.clipboard.writeText('${formURL}').then(()=>showToast('Copied!'))">Copy Link</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
 }
 
 // ── INIT CLIENTS PAGE ON NAV ──────────────────────────────────────────────────
