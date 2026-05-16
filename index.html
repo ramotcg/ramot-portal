@@ -445,12 +445,12 @@ textarea{resize:vertical;min-height:80px;}
               <option value="">— Select client —</option>
             </select>
           </div>
-          <div class="form-group"><label>Company Name</label><input type="text" id="prop-company" placeholder="Select a client above to auto-fill"/></div>
-          <div class="form-group"><label>Contact Name</label><input type="text" id="prop-contact" placeholder=""/></div>
-          <div class="form-group"><label>Industry</label><input type="text" id="prop-industry" placeholder=""/></div>
+          <div class="form-group"><label>Company Name</label><input type="text" id="prop-company" placeholder="Acme Holdings, LLC"/></div>
+          <div class="form-group"><label>Contact Name</label><input type="text" id="prop-contact" placeholder="John Smith"/></div>
+          <div class="form-group"><label>Industry</label><input type="text" id="prop-industry" placeholder="Wholesale Distribution"/></div>
           <div class="form-group"><label>Proposal Date</label><input type="text" id="prop-date" placeholder="May 14, 2026"/></div>
-          <div class="form-group full"><label>What We Heard (discovery notes)</label><textarea id="prop-heard" placeholder="Auto-populated from client intake data when a client is selected"></textarea></div>
-          <div class="form-group full"><label>Scope Summary</label><textarea id="prop-scope" placeholder="Auto-populated from client services when a client is selected"></textarea></div>
+          <div class="form-group full"><label>What We Heard (discovery notes)</label><textarea id="prop-heard" placeholder="Key pain points and needs identified in discovery call..."></textarea></div>
+          <div class="form-group full"><label>Scope Summary</label><textarea id="prop-scope" placeholder="Overview of services being proposed..."></textarea></div>
         </div>
       </div>
       <!-- Pricing type -->
@@ -663,7 +663,6 @@ const ALLOWED_DOMAIN   = 'ramotconsultinggroup.com';
 const GOOGLE_CLIENT_ID = '748542419964-cen01poe01durfbdj37c00n660p895v4.apps.googleusercontent.com';
 const SHEET_ID         = '1wlZYmfFOchbr8Wphpriocat6XRJZ_FBKEqqR5yaHitc';
 const SHEETS_SCOPE     = 'https://www.googleapis.com/auth/spreadsheets';
-const GMAIL_SCOPE      = 'https://www.googleapis.com/auth/gmail.compose';
 
 let currentUser  = null;
 let accessToken  = null;   // Google OAuth access token for Sheets API
@@ -800,7 +799,7 @@ function initGoogleAuth(tokenOnly) {
     // Use token client flow instead of One Tap — shows full account picker
     const tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: 'openid email profile ' + SHEETS_SCOPE + ' ' + GMAIL_SCOPE,
+      scope: 'openid email profile ' + SHEETS_SCOPE,
       prompt: 'select_account',
       callback: (tokenResponse) => {
         if (tokenResponse.error) {
@@ -843,7 +842,7 @@ function initGoogleAuth(tokenOnly) {
     // User already logged in — silently get a fresh Sheets token
     const tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: 'openid email profile ' + SHEETS_SCOPE + ' ' + GMAIL_SCOPE,
+      scope: 'openid email profile ' + SHEETS_SCOPE,
       prompt: '',
       callback: (tokenResponse) => {
         if (!tokenResponse.error) accessToken = tokenResponse.access_token;
@@ -1115,21 +1114,9 @@ function goToPropForClient(id) {
     const sel = document.getElementById('prop-client-select');
     sel.value = String(c.id);
     loadClientIntoProp();
-  }, 100);
-
+  }, 150);
 }
 
-function goToPropForClient(id) {
-  const c = clients.find(cl => String(cl.id) === String(id));
-  if (!c) return;
-  showPage('proposal');
-  setTimeout(() => {
-    const sel = document.getElementById('prop-client-select');
-    sel.value = String(c.id);
-    loadClientIntoProp();
-  }, 100);
-
-}
 
 function deleteClient(id) {
   if (!confirm('Remove this client? This cannot be undone.')) return;
@@ -1269,7 +1256,7 @@ function populateClientSelects() {
 function loadClientIntoEL() {
   const id = parseInt(document.getElementById('el-client-select').value);
   if (!id) return;
-  const c = clients.find(cl => cl.id === id);
+  const c = clients.find(cl => String(cl.id) === String(id));
   if (!c) return;
   document.getElementById('el-company').value = c.company;
   document.getElementById('el-contact').value = c.contact;
@@ -1281,58 +1268,12 @@ function loadClientIntoEL() {
 }
 
 function loadClientIntoProp() {
-  const id = document.getElementById('prop-client-select').value;
+  const id = parseInt(document.getElementById('prop-client-select').value);
   if (!id) return;
   const c = clients.find(cl => String(cl.id) === String(id));
   if (!c) return;
-
-  // Basic fields
-  document.getElementById('prop-company').value = c.company || '';
-  document.getElementById('prop-contact').value = c.contact || '';
-  document.getElementById('prop-industry').value = c.industry || '';
-
-  // Auto-build "What We Heard" from intake data
-  const heardParts = [
-    c.drivingNeed || '',
-    c.outcomes || '',
-    c.complexityFactors && c.complexityFactors !== 'None' ? `Complexity: ${c.complexityFactors}` : '',
-    c.revenue ? `Annual revenue: ${c.revenue}` : '',
-    c.software ? `Current software: ${c.software}` : '',
-    c.booksCurrent && c.booksCurrent !== 'Up to date' ? `Books status: ${c.booksCurrent}` : '',
-    c.employees ? `Employees: ${c.employees}` : '',
-  ].filter(Boolean);
-  document.getElementById('prop-heard').value = heardParts.join('\n');
-
-  // Scope from services
-  document.getElementById('prop-scope').value = c.services || '';
-
-  // Auto-select pricing structure based on billingType
-  const billingType = c.billingType || 'retainer';
-  let pricingType = 'single';
-  if (billingType === 'retainer') pricingType = 'single';
-  else if (billingType === 'fixed') pricingType = 'project';
-  else if (billingType === 'hourly') pricingType = 'single';
-
-  const pricingCard = document.querySelector(`.pricing-type-card[onclick*="'${pricingType}'"]`);
-  if (pricingCard) selectPricingType(pricingType, pricingCard);
-
-  // Pre-fill pricing fields
-  const amt = (c.billingAmt || '').replace(/\/mo(nth)?\.?/i, '').trim();
-  if (pricingType === 'single') {
-    document.getElementById('single-price').value = amt;
-    document.getElementById('single-cadence').value = billingType === 'retainer' ? 'Monthly' : billingType === 'hourly' ? 'Hourly' : 'Per project';
-    // Pre-fill included services
-    document.getElementById('single-items').value = (c.services || '').split(',').map(s => s.trim()).join('\n');
-  } else if (pricingType === 'project') {
-    document.getElementById('proj-total').value = amt;
-  }
-
-  // If budget range available and no billing amount, use budget
-  if (!amt && c.budget && c.budget !== 'Project-based / TBD') {
-    if (pricingType === 'single') document.getElementById('single-price').value = c.budget;
-  }
-
-  showToast(`Loaded ${c.company}`);
+  document.getElementById('prop-company').value = c.company;
+  document.getElementById('prop-contact').value = c.contact;
 }
 
 // ── ENGAGEMENT LETTER ─────────────────────────────────────────────────────────
@@ -2128,7 +2069,7 @@ function showToast(msg) {
 }
 
 // ── ONBOARDING FORM ──────────────────────────────────────────────────────────
-const ONBOARDING_SECTIONS_BUSINESS = {
+const ONBOARDING_SECTIONS = {
   core: {
     title: 'Business & Engagement Setup',
     alwaysIncluded: true,
@@ -2194,60 +2135,6 @@ const ONBOARDING_SECTIONS_BUSINESS = {
   }
 };
 
-const ONBOARDING_SECTIONS_PERSONAL = {
-  contact: {
-    title: 'Contact & Filing Setup',
-    alwaysIncluded: true,
-    questions: [
-      'Legal name (as it appears on tax returns)',
-      'Date of birth',
-      'Current mailing address',
-      'Filing status (Single, Married Filing Jointly, Married Filing Separately, Head of Household)',
-      'Spouse legal name and date of birth (if applicable)',
-      'Number of dependents and their names and dates of birth (if applicable)',
-      'States you lived or worked in during the tax year',
-      'Who should receive correspondence from us? (name, email, phone)',
-      'Preferred communication channel (email, phone, text)',
-      'Preferred meeting format (video call, phone, in person)',
-    ]
-  },
-  income: {
-    title: 'Income & Documents',
-    alwaysIncluded: true,
-    questions: [
-      'What income sources did you have this tax year? (W-2, 1099-NEC, rental income, investment income, self-employment, retirement/pension, K-1, cryptocurrency, other)',
-      'Do you have all your tax documents ready? (W-2s, 1099s, brokerage statements, etc.)',
-      'Did you sell any investments, stocks, or real property this year? (yes/no — if yes, please describe)',
-      'Do you have any foreign income or foreign bank accounts?',
-      'Did you receive any IRS or state tax notices this year? (yes/no — if yes, please describe)',
-    ]
-  },
-  deductions: {
-    title: 'Deductions & Credits',
-    alwaysIncluded: true,
-    questions: [
-      'Do you own a home? (yes/no — if yes, do you have a mortgage?)',
-      'Did you make any charitable contributions this year? (yes/no — approximate total if yes)',
-      'Do you have significant unreimbursed medical expenses?',
-      'Do you contribute to a retirement account? (IRA, Roth IRA, Solo 401k, SEP-IRA — please specify)',
-      'Do you have childcare expenses? (yes/no — if yes, provider name and amount)',
-      'Do you have education expenses or student loan interest?',
-      'Do you operate a business or have self-employment income? (yes/no — if yes, do you have a home office or vehicle used for business?)',
-    ]
-  },
-  priorYear: {
-    title: 'Prior Year & Logistics',
-    alwaysIncluded: true,
-    questions: [
-      'Who prepared your taxes last year?',
-      'Can you provide a copy of last year\'s return? (yes/no)',
-      'Are there any prior year amendments or unfiled returns we should know about?',
-      'Did you have any major life changes this year? (marriage, divorce, new child, home purchase or sale, job change, retirement — please describe)',
-      'Is there anything else we should know before we get started?',
-    ]
-  }
-};
-
 let onboardingClientId = null;
 
 function openOnboardingModal(id) {
@@ -2256,122 +2143,27 @@ function openOnboardingModal(id) {
   if (!c) return;
 
   const services = (c.services || '').toLowerCase();
-
-  // Detect onboarding type
-  const looksPersonal = services.includes('personal tax') || services.includes('individual tax') || services.includes('tax return') || services.includes('personal') || c.company === c.contact;
-  const detectedType = looksPersonal ? 'personal' : 'business';
-
-  // Show confirmation modal first
-  showOnboardingTypeConfirm(id, c, detectedType);
-}
-
-function showOnboardingTypeConfirm(id, c, detectedType) {
-  const existing = document.getElementById('modal-onboarding-type');
-  if (existing) existing.remove();
-
-  const modal = document.createElement('div');
-  modal.className = 'modal-overlay open';
-  modal.id = 'modal-onboarding-type';
-  modal.innerHTML = `
-    <div class="modal" style="width:480px;">
-      <div class="modal-header">
-        <div class="modal-title">Onboarding Type</div>
-        <button class="modal-close" onclick="document.getElementById('modal-onboarding-type').remove()">×</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size:13px;color:var(--gray);margin-bottom:20px;line-height:1.6;">
-          Confirm the onboarding type for <strong>${c.company}</strong>. This determines which questions are sent.
-        </p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div onclick="selectOnboardingType('business', ${id})" id="type-business"
-            style="border:2px solid ${detectedType==='business'?'var(--copper)':'var(--lgray)'};background:${detectedType==='business'?'rgba(176,125,74,0.06)':'var(--white)'};border-radius:3px;padding:20px;cursor:pointer;text-align:center;transition:all 0.15s;">
-            <div style="font-size:24px;margin-bottom:8px;">🏢</div>
-            <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--navy);font-weight:500;">Business</div>
-            <div style="font-size:11px;color:var(--gray);margin-top:4px;">Accounting, CFO, Advisory</div>
-            ${detectedType==='business'?'<div style="font-size:10px;color:var(--copper);margin-top:8px;letter-spacing:1px;">DETECTED</div>':''}
-          </div>
-          <div onclick="selectOnboardingType('personal', ${id})" id="type-personal"
-            style="border:2px solid ${detectedType==='personal'?'var(--copper)':'var(--lgray)'};background:${detectedType==='personal'?'rgba(176,125,74,0.06)':'var(--white)'};border-radius:3px;padding:20px;cursor:pointer;text-align:center;transition:all 0.15s;">
-            <div style="font-size:24px;margin-bottom:8px;">🧾</div>
-            <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--navy);font-weight:500;">Personal Tax</div>
-            <div style="font-size:11px;color:var(--gray);margin-top:4px;">Individual tax return</div>
-            ${detectedType==='personal'?'<div style="font-size:10px;color:var(--copper);margin-top:8px;letter-spacing:1px;">DETECTED</div>':''}
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-outline btn-sm" onclick="document.getElementById('modal-onboarding-type').remove()">Cancel</button>
-        <button class="btn btn-primary btn-sm" onclick="confirmOnboardingType(${id})">Continue →</button>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
-
-  // Store selected type
-  modal.dataset.selectedType = detectedType;
-}
-
-let selectedOnboardingType = 'business';
-
-function selectOnboardingType(type, id) {
-  selectedOnboardingType = type;
-  ['business','personal'].forEach(t => {
-    const el = document.getElementById('type-' + t);
-    if (!el) return;
-    el.style.border = `2px solid ${t===type?'var(--copper)':'var(--lgray)'}`;
-    el.style.background = t===type?'rgba(176,125,74,0.06)':'var(--white)';
-  });
-}
-
-function confirmOnboardingType(id) {
-  document.getElementById('modal-onboarding-type') && document.getElementById('modal-onboarding-type').remove();
-  buildOnboardingModal(id, selectedOnboardingType);
-}
-
-function buildOnboardingModal(id, onboardingType) {
-  onboardingClientId = id;
-  const c = clients.find(cl => cl.id == id);
-  if (!c) return;
-
-  const services = (c.services || '').toLowerCase();
   const container = document.getElementById('onboarding-sections');
   container.innerHTML = '';
 
-  // Update modal title
-  document.querySelector('#modal-onboarding .modal-title').textContent =
-    `Send Onboarding Form — ${onboardingType === 'personal' ? 'Personal Tax' : 'Business'}`;
-
-  // Store type on modal for use in generateOnboardingLink
-  document.getElementById('modal-onboarding').dataset.onboardingType = onboardingType;
-
-  let sectionDefaults, sectionsToShow, sectionData;
-
-  if (onboardingType === 'personal') {
-    sectionData = ONBOARDING_SECTIONS_PERSONAL;
-    sectionsToShow = ['contact', 'income', 'deductions', 'priorYear'];
-    sectionDefaults = { contact: true, income: true, deductions: true, priorYear: true };
-  } else {
-    sectionData = ONBOARDING_SECTIONS_BUSINESS;
-    const isAccounting = services.includes('bookkeeping') || services.includes('accounting') || services.includes('payroll') || services.includes('tax') || services.includes('month-end') || services.includes('compliance');
-    const isStrategic  = services.includes('cfo') || services.includes('strategic') || services.includes('fractional') || services.includes('reporting') || services.includes('budget') || services.includes('forecast');
-    const isTransaction = services.includes('diligence') || services.includes('transaction') || services.includes('quality of earnings') || services.includes('deal') || services.includes('advisory');
-    sectionDefaults = { core: true, accounting: isAccounting, strategic: isStrategic, transaction: isTransaction };
-    sectionsToShow = ['core', 'accounting', 'strategic', 'transaction'];
-  }
+  // Determine which sections to show
+  const sectionsToShow = ['core'];
+  if (services.includes('bookkeeping') || services.includes('accounting') || services.includes('payroll') || services.includes('tax') || services.includes('month-end') || services.includes('compliance')) sectionsToShow.push('accounting');
+  if (services.includes('cfo') || services.includes('strategic') || services.includes('fractional') || services.includes('reporting') || services.includes('budget') || services.includes('forecast')) sectionsToShow.push('strategic');
+  if (services.includes('diligence') || services.includes('transaction') || services.includes('quality of earnings') || services.includes('deal') || services.includes('advisory')) sectionsToShow.push('transaction');
 
   sectionsToShow.forEach(key => {
-    const section = sectionData[key];
+    const section = ONBOARDING_SECTIONS[key];
     const wrap = document.createElement('div');
     wrap.style.cssText = 'border:1px solid var(--lgray);border-radius:3px;overflow:hidden;';
 
     // Section header with select-all
     const header = document.createElement('div');
     header.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--cream2);border-bottom:1px solid var(--lgray);';
-    const isChecked = sectionDefaults[key];
     header.innerHTML = `
-      <input type="checkbox" id="ob-all-${key}" ${isChecked ? 'checked' : ''} style="width:auto;cursor:pointer;" onchange="toggleOnboardingSection('${key}',this.checked)">
+      <input type="checkbox" id="ob-all-${key}" checked style="width:auto;cursor:pointer;" onchange="toggleOnboardingSection('${key}',this.checked)">
       <label for="ob-all-${key}" style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--navy);font-weight:500;cursor:pointer;">${section.title}</label>
-      ${key === 'core' ? '<span style="font-size:10px;color:var(--copper);margin-left:auto;letter-spacing:1px;">Always included</span>' : !isChecked ? '<span style="font-size:10px;color:var(--gray);margin-left:auto;letter-spacing:1px;">Not in current services</span>' : ''}`;
+      ${key === 'core' ? '<span style="font-size:10px;color:var(--copper);margin-left:auto;letter-spacing:1px;">Always included</span>' : ''}`;
     wrap.appendChild(header);
 
     // Questions
@@ -2380,7 +2172,7 @@ function buildOnboardingModal(id, onboardingType) {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--lgray);';
       row.innerHTML = `
-        <input type="checkbox" class="ob-question" data-section="${key}" ${isChecked ? 'checked' : ''} style="width:auto;cursor:pointer;flex-shrink:0;">
+        <input type="checkbox" class="ob-question" data-section="${key}" checked style="width:auto;cursor:pointer;flex-shrink:0;">
         <input type="text" value="${q}" class="ob-question-text"
           style="flex:1;border:none;background:transparent;font-family:'Jost',sans-serif;font-size:13px;color:var(--navy);outline:none;padding:2px 0;"
           onfocus="this.style.borderBottom='1px solid var(--copper)'"
@@ -2444,160 +2236,50 @@ function generateOnboardingLink() {
 
   // Collect all checked questions by section
   const sections = {};
-  const includedServices = [];
-  const serviceMap = {
-    accounting: 'Accounting & Compliance',
-    strategic: 'Strategic Finance / Fractional CFO',
-    transaction: 'Transaction Advisory',
-  };
-
   document.querySelectorAll('.ob-question').forEach(cb => {
     if (!cb.checked) return;
     const section = cb.dataset.section;
     const textInput = cb.nextElementSibling;
     const text = textInput ? textInput.value.trim() : '';
     if (!text) return;
-    if (!sections[section]) {
-      sections[section] = [];
-      if (section !== 'core' && serviceMap[section]) includedServices.push(serviceMap[section]);
-    }
+    if (!sections[section]) sections[section] = [];
     sections[section].push(text);
   });
 
-  // Auto-update client services in sheet if new sections were added
-  const currentServices = c.services || '';
-  const newServices = includedServices.filter(s => !currentServices.includes(s));
-  if (newServices.length > 0) {
-    const idx = clients.findIndex(cl => cl.id == onboardingClientId);
-    if (idx >= 0) {
-      const updatedServices = [currentServices, ...newServices].filter(Boolean).join(', ');
-      clients[idx].services = updatedServices;
-      updateClientInSheet(clients[idx]);
-    }
-  }
-
-  // Include onboarding type in payload
-  const onboardingType = document.getElementById('modal-onboarding').dataset.onboardingType || 'business';
-
-  // Encode using URL-safe base64
-  const payload = { client: c.company, contact: c.contact, email: c.email, onboardingType, sections };
-  const jsonStr = JSON.stringify(payload);
-  // Use TextEncoder for proper UTF-8 handling
-  const bytes = new TextEncoder().encode(jsonStr);
-  let binary = '';
-  bytes.forEach(b => binary += String.fromCharCode(b));
-  const encoded = btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  // Encode as base64 to keep URL clean
+  const payload = {
+    client: c.company,
+    contact: c.contact,
+    sections,
+  };
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
   const formURL = `https://intake.ramotconsultinggroup.com/onboarding?data=${encoded}`;
 
-  // Copy link to clipboard
+  // Build Gmail draft URL
+  const subject = encodeURIComponent(`Welcome to RAMOT Consulting Group — Client Onboarding`);
+  // Copy link to clipboard as well for easy access
   navigator.clipboard && navigator.clipboard.writeText(formURL).catch(()=>{});
 
+  const body = encodeURIComponent(
+`Dear ${c.contact},
+
+We're excited to get started and want to make the onboarding process as smooth as possible.
+
+To help us hit the ground running, please take a few minutes to complete your personalized onboarding form. It should take no more than 10–15 minutes.
+
+[ Paste onboarding link here — link has been copied to your clipboard ]
+
+Once we receive your responses, we'll review everything and reach out to schedule your kickoff call.
+
+In the meantime, please don't hesitate to reach out with any questions.`
+  );
+
+  // Open in ramotconsultinggroup.com Gmail account specifically
+  const gmailURL = `https://mail.google.com/mail/u/0/?authuser=${encodeURIComponent(currentUser.email)}&view=cm&fs=1&to=${encodeURIComponent(c.email)}&su=${subject}&body=${body}`;
+
   closeModal('modal-onboarding');
-  showOnboardingLinkModal(c, formURL);
-}
-
-async function showOnboardingLinkModal(c, formURL) {
-  showToast('Creating Gmail draft...');
-  try {
-    await createGmailDraft(c, formURL);
-    showToast('Draft created — check your Gmail Drafts folder.');
-    // Open Gmail drafts in new tab
-    window.open(
-      `https://mail.google.com/mail/u/0/?authuser=${encodeURIComponent(currentUser.email)}#drafts`,
-      '_blank'
-    );
-  } catch(err) {
-    console.error('Gmail draft error:', err);
-    // Fallback — show link modal
-    showLinkFallbackModal(c, formURL);
-  }
-}
-
-async function createGmailDraft(c, formURL) {
-  const subject = 'Welcome to RAMOT Consulting Group - Client Onboarding';
-
-  // Fetch Gmail signature
-  let signatureHTML = '';
-  try {
-    const sigRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs', {
-      headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
-    if (sigRes.ok) {
-      const sigData = await sigRes.json();
-      const defaultSendAs = sigData.sendAs && sigData.sendAs.find(s => s.isDefault);
-      if (defaultSendAs && defaultSendAs.signature) {
-        signatureHTML = `<br><br><div>${defaultSendAs.signature}</div>`;
-      }
-    }
-  } catch(e) {
-    console.log('Could not fetch signature:', e);
-  }
-
-  const htmlBody = `
-<p>Dear ${c.contact},</p>
-<p>We&#39;re excited to get started and want to make the onboarding process as smooth as possible.</p>
-<p>To help us hit the ground running, please take a few minutes to complete your personalized onboarding form. It should take no more than 10&#8211;15 minutes.</p>
-<p><a href="${formURL}" style="color:#B07D4A;font-weight:500;">Client Onboarding Form</a></p>
-<p>Once we receive your responses, we&#39;ll review everything and reach out to schedule your kickoff meeting.</p>
-<p>In the meantime, please don&#39;t hesitate to reach out with any questions.</p>
-${signatureHTML}`;
-
-  // Build RFC 2822 email message
-  const message = [
-    `To: ${c.email}`,
-    `Subject: ${subject}`,
-    'Content-Type: text/html; charset=UTF-8',
-    'MIME-Version: 1.0',
-    '',
-    htmlBody,
-  ].join('\r\n');
-
-  // Base64url encode using TextEncoder for proper UTF-8
-  const msgBytes = new TextEncoder().encode(message);
-  let msgBinary = '';
-  msgBytes.forEach(b => msgBinary += String.fromCharCode(b));
-  const encoded = btoa(msgBinary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-  const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ message: { raw: encoded } }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gmail API error: ${res.status} ${err}`);
-  }
-  return res.json();
-}
-
-function showLinkFallbackModal(c, formURL) {
-  const existing = document.getElementById('modal-onboarding-link');
-  if (existing) existing.remove();
-  const modal = document.createElement('div');
-  modal.className = 'modal-overlay open';
-  modal.id = 'modal-onboarding-link';
-  modal.innerHTML = `
-    <div class="modal" style="width:520px;">
-      <div class="modal-header">
-        <div class="modal-title">Onboarding Link</div>
-        <button class="modal-close" onclick="document.getElementById('modal-onboarding-link').remove()">×</button>
-      </div>
-      <div class="modal-body">
-        <div style="background:#fff0f0;border:1px solid #ffcccc;border-radius:3px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#c00;">
-          Could not create Gmail draft automatically. Copy the link below and paste it into Gmail manually.
-        </div>
-        <div style="background:var(--white);border:1px solid var(--lgray);border-radius:3px;padding:12px 16px;font-size:11px;color:var(--gray);word-break:break-all;margin-bottom:16px;">
-          ${formURL}
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="navigator.clipboard.writeText('${formURL}').then(()=>showToast('Copied!'))">Copy Link</button>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  window.open(gmailURL, '_blank');
+  showToast('Gmail draft opened.');
 }
 
 // ── INIT CLIENTS PAGE ON NAV ──────────────────────────────────────────────────
