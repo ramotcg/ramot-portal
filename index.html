@@ -526,7 +526,7 @@ textarea{resize:vertical;min-height:80px;}
         </div>
       </div>
       <div class="form-actions">
-        <button class="btn btn-primary" onclick="generateProposal()">Generate Proposal PDF</button>
+        <button class="btn btn-primary" onclick="generateProposal()">Generate Proposal</button>
       </div>
     </div>
 
@@ -660,6 +660,8 @@ textarea{resize:vertical;min-height:80px;}
 <script>
 // ── DATA ──────────────────────────────────────────────────────────────────────
 const ALLOWED_DOMAIN   = 'ramotconsultinggroup.com';
+const PROPOSAL_API_URL = 'https://ramot-proposal-api-production.up.railway.app';
+const PROPOSAL_API_KEY = 'rmp-8x4k-2026-rcg';
 const GOOGLE_CLIENT_ID = '748542419964-cen01poe01durfbdj37c00n660p895v4.apps.googleusercontent.com';
 const SHEET_ID         = '1wlZYmfFOchbr8Wphpriocat6XRJZ_FBKEqqR5yaHitc';
 const SHEETS_SCOPE     = 'https://www.googleapis.com/auth/spreadsheets';
@@ -1793,264 +1795,120 @@ function selectPricingType(type, el) {
   });
 }
 
-function generateProposal() {
-  const company = document.getElementById('prop-company').value || '[Company]';
-  const contact = document.getElementById('prop-contact').value || '';
+async function generateProposal() {
+  const company  = document.getElementById('prop-company').value;
+  const contact  = document.getElementById('prop-contact').value;
   const industry = document.getElementById('prop-industry').value || '';
-  const date = document.getElementById('prop-date').value || new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-  const heard = document.getElementById('prop-heard').value || '';
-  const scope = document.getElementById('prop-scope').value || '';
-  let pricingHTML = '';
+  const date     = document.getElementById('prop-date').value || new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  const heard    = document.getElementById('prop-heard').value || '';
+  const scope    = document.getElementById('prop-scope').value || '';
 
+  if (!company) { showToast('Please select or enter a client first.'); return; }
+
+  // Build pricing data
+  let packages = [], onboarding = null;
   if (currentPricingType === 'tiered') {
-    const t1p = document.getElementById('tier1-price').value || 'Essential';
-    const t2p = document.getElementById('tier2-price').value || 'Growth';
-    const t3p = document.getElementById('tier3-price').value || 'Strategic';
-    const t1i = document.getElementById('tier1-items').value.split('\n').filter(Boolean);
-    const t2i = document.getElementById('tier2-items').value.split('\n').filter(Boolean);
-    const t3i = document.getElementById('tier3-items').value.split('\n').filter(Boolean);
-    pricingHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;padding:40px 60px 0;">
-        ${[['Essential',t1p,t1i],['Growth',t2p,t2i],['Strategic',t3p,t3i]].map(([name,price,items],i)=>`
-          <div style="background:${i===1?'rgba(176,125,74,0.25)':'rgba(255,255,255,0.06)'};border:1px solid rgba(255,255,255,${i===1?'0.25':'0.1'});border-radius:4px;padding:24px;">
-            <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">${name}</div>
-            <div style="font-family:'Cormorant Garamond',serif;font-size:28px;color:#fff;font-weight:300;margin-bottom:16px;">${price}</div>
-            <div style="width:32px;height:1px;background:#B07D4A;margin-bottom:16px;"></div>
-            ${items.map(it=>`<div style="font-size:11px;color:rgba(255,255,255,0.75);padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08);">— ${it}</div>`).join('')}
-          </div>`).join('')}
-      </div>`;
+    ['tier1','tier2','tier3'].forEach((t,i) => {
+      const names = ['ESSENTIAL','GROWTH','ADVISORY'];
+      const taglines = ['Get the books right','Get more value','Full partnership'];
+      packages.push({
+        name: names[i], tagline: taglines[i],
+        price: document.getElementById(t+'-price').value || '',
+        highlight: i === 1,
+        items: (document.getElementById(t+'-items').value || '').split('').filter(Boolean).map(l => ({ label:l, inc:true })),
+        note: ''
+      });
+    });
   } else if (currentPricingType === 'single') {
-    const price = document.getElementById('single-price').value || '';
-    const cadence = document.getElementById('single-cadence').value || 'Monthly';
-    const items = document.getElementById('single-items').value.split('\n').filter(Boolean);
-    pricingHTML = `
-      <div style="text-align:center;padding:40px 80px 0;">
-        <div style="font-size:11px;letter-spacing:4px;text-transform:uppercase;color:#B07D4A;margin-bottom:12px;">Investment</div>
-        <div style="font-family:'Cormorant Garamond',serif;font-size:64px;color:#fff;font-weight:300;line-height:1;">${price}</div>
-        <div style="font-size:12px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.5);margin-bottom:32px;">${cadence}</div>
-        <div style="max-width:500px;margin:0 auto;">${items.map(it=>`<div style="font-size:12px;color:rgba(255,255,255,0.75);padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.1);">— ${it}</div>`).join('')}</div>
-      </div>`;
-  } else if (currentPricingType === 'recurring') {
-    const monthly = document.getElementById('rec-monthly').value || '';
-    const onetime = document.getElementById('rec-onetime').value || '';
-    const mItems = document.getElementById('rec-monthly-items').value.split('\n').filter(Boolean);
-    const oItems = document.getElementById('rec-onetime-items').value.split('\n').filter(Boolean);
-    pricingHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;padding:40px 60px 0;">
-        <div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:28px;">
-          <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">Monthly</div>
-          <div style="font-family:'Cormorant Garamond',serif;font-size:36px;color:#fff;font-weight:300;margin-bottom:16px;">${monthly}</div>
-          ${mItems.map(it=>`<div style="font-size:11px;color:rgba(255,255,255,0.75);padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08);">— ${it}</div>`).join('')}
-        </div>
-        <div style="background:rgba(176,125,74,0.2);border:1px solid rgba(176,125,74,0.3);border-radius:4px;padding:28px;">
-          <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">One-Time</div>
-          <div style="font-family:'Cormorant Garamond',serif;font-size:36px;color:#fff;font-weight:300;margin-bottom:16px;">${onetime}</div>
-          ${oItems.map(it=>`<div style="font-size:11px;color:rgba(255,255,255,0.75);padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08);">— ${it}</div>`).join('')}
-        </div>
-      </div>`;
+    packages = [{
+      name: 'ENGAGEMENT', tagline: document.getElementById('single-cadence').value || 'Monthly',
+      price: document.getElementById('single-price').value || '',
+      highlight: false,
+      items: (document.getElementById('single-items').value || '').split('').filter(Boolean).map(l => ({ label:l, inc:true })),
+      note: ''
+    }];
   } else if (currentPricingType === 'project') {
-    const total = document.getElementById('proj-total').value || '';
-    const timeline = document.getElementById('proj-timeline').value || '';
-    const m1 = document.getElementById('proj-m1').value || '';
-    const m2 = document.getElementById('proj-m2').value || '';
-    pricingHTML = `
-      <div style="padding:40px 80px 0;">
-        <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:32px;">
-          <div>
-            <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">Project Fee</div>
-            <div style="font-family:'Cormorant Garamond',serif;font-size:56px;color:#fff;font-weight:300;">${total}</div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.4);">Timeline</div>
-            <div style="font-size:18px;color:rgba(255,255,255,0.8);margin-top:4px;">${timeline}</div>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-          <div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:20px;">
-            <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">Milestone 1 — 50% at Signing</div>
-            <div style="font-size:12px;color:rgba(255,255,255,0.75);line-height:1.6;">${m1}</div>
-          </div>
-          <div style="background:rgba(176,125,74,0.2);border:1px solid rgba(176,125,74,0.3);border-radius:4px;padding:20px;">
-            <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">Milestone 2 — 50% at Delivery</div>
-            <div style="font-size:12px;color:rgba(255,255,255,0.75);line-height:1.6;">${m2}</div>
-          </div>
-        </div>
-      </div>`;
+    packages = [{
+      name: 'PROJECT FEE', tagline: document.getElementById('proj-timeline').value || '',
+      price: document.getElementById('proj-total').value || '',
+      highlight: false,
+      items: [
+        { label: document.getElementById('proj-m1').value || 'Milestone 1', inc: true },
+        { label: document.getElementById('proj-m2').value || 'Milestone 2', inc: true },
+      ],
+      note: ''
+    }];
   }
 
-  const whyItems = [
-    'CPA-led firm with institutional-quality rigor',
-    'Experience across public accounting, private equity, and operating CFO roles',
-    'The right expertise for every engagement — no overpaying, no corners cut',
-    'Financial clarity, not just compliance — we make sure you understand your numbers',
-    'Built for growth: we help you leverage technology to work smarter and scale faster',
-  ];
+  // Build services from scope text
+  const serviceLines = scope.split(',').map(s => s.trim()).filter(Boolean);
+  const services = serviceLines.map(s => ({ iconName: 'FaChartLine', label: s, desc: '' }));
 
-  const slideStyles = `
-    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Jost:wght@300;400;500&display=swap');
-    *{margin:0;padding:0;box-sizing:border-box;}
-    body{background:#fff;}
-    .slide{width:11in;height:8.5in;background:#1A2744;display:flex;flex-direction:column;position:relative;overflow:hidden;page-break-after:always;page-break-inside:avoid;}
-    .slide-cream{background:#F8F4EE;}
-    .slide-footer{position:absolute;bottom:0;left:0;right:0;padding:18px 48px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.1);}
-    .slide-footer-cream{border-top-color:rgba(26,39,68,0.1);}
-    .slide-num{font-family:'Jost',sans-serif;font-size:10px;letter-spacing:2px;color:rgba(255,255,255,0.3);}
-    .slide-num-dark{color:rgba(26,39,68,0.3);}
-    .slide-brand{font-family:'Cormorant Garamond',serif;font-size:13px;letter-spacing:3px;color:rgba(255,255,255,0.4);}
-    .slide-brand-dark{color:rgba(26,39,68,0.3);}
-    .copper-rule{width:40px;height:2px;background:#B07D4A;margin-bottom:12px;}
-    @page{size:11in 8.5in landscape;margin:0;}
-    @media print{.slide{page-break-after:always;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
-  `;
+  // Build heard columns from text
+  const heardLines = heard.split('').filter(Boolean);
+  const col1 = { iconName: 'MdTrendingUp',     title: 'What We Heard',    items: heardLines.slice(0,3) };
+  const col2 = { iconName: 'MdAccountBalance', title: 'Key Challenges',   items: heardLines.slice(3,6) };
+  const col3 = { iconName: 'MdStar',           title: 'Desired Outcomes', items: heardLines.slice(6,9) };
 
-  const proposalHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${slideStyles}</style></head><body>
-
-  <!-- SLIDE 1: COVER -->
-  <div class="slide" style="align-items:center;justify-content:center;text-align:center;background:radial-gradient(ellipse at 30% 50%,rgba(176,125,74,0.2) 0%,transparent 60%),#1A2744;">
-    <div style="font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:6px;text-transform:uppercase;color:#B07D4A;margin-bottom:16px;">Prepared for</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:64px;font-weight:300;color:#F8F4EE;line-height:1.1;margin-bottom:8px;">${company}</div>
-    ${contact ? `<div style="font-size:14px;color:rgba(248,244,238,0.5);margin-bottom:32px;">${contact}${industry?' · '+industry:''}</div>` : ''}
-    <div style="width:48px;height:1px;background:#B07D4A;margin:0 auto 32px;"></div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;color:#F8F4EE;letter-spacing:2px;">R.A.M.O.T. Consulting Group</div>
-    <div style="font-size:11px;letter-spacing:4px;text-transform:uppercase;color:#B07D4A;margin-top:6px;">Numbers you can count on. People you can trust.</div>
-    <div style="position:absolute;bottom:40px;font-size:11px;color:rgba(255,255,255,0.25);letter-spacing:1px;">${date}</div>
-  </div>
-
-  <!-- SLIDE 2: SNAPSHOT -->
-  <div class="slide slide-cream" style="padding:56px 64px 80px;">
-    <div class="copper-rule"></div>
-    <div style="font-size:10px;letter-spacing:5px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">Overview</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:48px;font-weight:300;color:#1A2744;margin-bottom:32px;">Engagement Snapshot</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;">
-      <div style="background:#fff;border:1px solid #D8D2C8;border-top:3px solid #B07D4A;padding:24px;border-radius:2px;">
-        <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">Client</div>
-        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:#1A2744;">${company}</div>
-        ${industry?`<div style="font-size:12px;color:#6B6560;margin-top:4px;">${industry}</div>`:''}
-      </div>
-      <div style="background:#fff;border:1px solid #D8D2C8;border-top:3px solid #B07D4A;padding:24px;border-radius:2px;">
-        <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">Services</div>
-        <div style="font-size:12px;color:#1A2744;line-height:1.7;">${scope||'To be defined'}</div>
-      </div>
-      <div style="background:#fff;border:1px solid #D8D2C8;border-top:3px solid #B07D4A;padding:24px;border-radius:2px;">
-        <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">Prepared By</div>
-        <div style="font-family:'Cormorant Garamond',serif;font-size:18px;color:#1A2744;">R.A.M.O.T. Consulting Group</div>
-        <div style="font-size:12px;color:#6B6560;margin-top:4px;">Avi Mafouda, CPA</div>
-        <div style="font-size:11px;color:#6B6560;">avi@ramotconsultinggroup.com</div>
-      </div>
-    </div>
-    <div class="slide-footer slide-footer-cream">
-      <div class="slide-num slide-num-dark">02</div>
-      <div class="slide-brand slide-brand-dark">R.A.M.O.T. Consulting Group</div>
-    </div>
-  </div>
-
-  <!-- SLIDE 3: WHAT WE HEARD -->
-  <div class="slide" style="padding:56px 64px 80px;">
-    <div class="copper-rule"></div>
-    <div style="font-size:10px;letter-spacing:5px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">Discovery</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:48px;font-weight:300;color:#F8F4EE;margin-bottom:32px;">What We Heard</div>
-    <div style="max-width:700px;">
-      ${heard ? heard.split('\n').filter(Boolean).map(line=>`
-        <div style="display:flex;align-items:flex-start;gap:16px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,0.08);">
-          <div style="width:24px;height:1px;background:#B07D4A;margin-top:10px;flex-shrink:0;"></div>
-          <div style="font-size:14px;color:rgba(248,244,238,0.85);line-height:1.6;">${line}</div>
-        </div>`).join('') : '<div style="font-size:14px;color:rgba(255,255,255,0.4);font-style:italic;">Discovery notes will appear here.</div>'}
-    </div>
-    <div class="slide-footer">
-      <div class="slide-num">03</div>
-      <div class="slide-brand">R.A.M.O.T. Consulting Group</div>
-    </div>
-  </div>
-
-  <!-- SLIDE 4: SCOPE -->
-  <div class="slide slide-cream" style="padding:56px 64px 80px;">
-    <div class="copper-rule"></div>
-    <div style="font-size:10px;letter-spacing:5px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">Our Proposal</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:48px;font-weight:300;color:#1A2744;margin-bottom:24px;">Scope of Work</div>
-    <div style="font-size:14px;color:#6B6560;line-height:1.8;max-width:800px;">${scope||'[Scope description will appear here]'}</div>
-    <div class="slide-footer slide-footer-cream">
-      <div class="slide-num slide-num-dark">04</div>
-      <div class="slide-brand slide-brand-dark">R.A.M.O.T. Consulting Group</div>
-    </div>
-  </div>
-
-  <!-- SLIDE 5: PRICING -->
-  <div class="slide" style="padding:48px 0 80px;">
-    <div style="padding:0 64px;">
-      <div class="copper-rule"></div>
-      <div style="font-size:10px;letter-spacing:5px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">Investment</div>
-      <div style="font-family:'Cormorant Garamond',serif;font-size:48px;font-weight:300;color:#F8F4EE;margin-bottom:8px;">Pricing</div>
-    </div>
-    ${pricingHTML}
-    <div class="slide-footer">
-      <div class="slide-num">05</div>
-      <div class="slide-brand">R.A.M.O.T. Consulting Group</div>
-    </div>
-  </div>
-
-  <!-- SLIDE 6: WHY RAMOT -->
-  <div class="slide slide-cream" style="padding:56px 64px 80px;">
-    <div class="copper-rule"></div>
-    <div style="font-size:10px;letter-spacing:5px;text-transform:uppercase;color:#B07D4A;margin-bottom:8px;">Our Difference</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:48px;font-weight:300;color:#1A2744;margin-bottom:32px;">Why R.A.M.O.T.</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;max-width:800px;">
-      ${whyItems.map((item,i)=>`
-        <div style="display:flex;align-items:flex-start;gap:16px;padding:16px 24px 16px 0;border-bottom:1px solid #D8D2C8;${i%2===1?'padding-left:24px;border-left:1px solid #D8D2C8;':''}">
-          <div style="font-family:'Cormorant Garamond',serif;font-size:28px;color:#B07D4A;font-weight:300;line-height:1;flex-shrink:0;">${String(i+1).padStart(2,'0')}</div>
-          <div style="font-size:12px;color:#1A2744;line-height:1.7;">${item}</div>
-        </div>`).join('')}
-    </div>
-    <div class="slide-footer slide-footer-cream">
-      <div class="slide-num slide-num-dark">06</div>
-      <div class="slide-brand slide-brand-dark">R.A.M.O.T. Consulting Group</div>
-    </div>
-  </div>
-
-  <!-- SLIDE 7: NEXT STEPS -->
-  <div class="slide" style="align-items:center;justify-content:center;text-align:center;background:radial-gradient(ellipse at 70% 50%,rgba(176,125,74,0.15) 0%,transparent 60%),#1A2744;">
-    <div style="font-size:10px;letter-spacing:5px;text-transform:uppercase;color:#B07D4A;margin-bottom:16px;">Let's Get Started</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:56px;font-weight:300;color:#F8F4EE;margin-bottom:24px;">Next Steps</div>
-    <div style="width:48px;height:1px;background:#B07D4A;margin:0 auto 32px;"></div>
-    <div style="display:flex;gap:48px;justify-content:center;">
-      ${['Review this proposal','Schedule a follow-up call','Execute the engagement letter'].map((step,i)=>`
-        <div style="text-align:center;">
-          <div style="font-family:'Cormorant Garamond',serif;font-size:40px;color:#B07D4A;font-weight:300;margin-bottom:8px;">${i+1}</div>
-          <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.7);">${step}</div>
-        </div>`).join('')}
-    </div>
-    <div style="margin-top:48px;">
-      <div style="font-size:13px;color:rgba(255,255,255,0.5);">Questions? Reach us at</div>
-      <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:#F8F4EE;margin-top:4px;">avi@ramotconsultinggroup.com</div>
-    </div>
-    <div class="slide-footer">
-      <div class="slide-num">07</div>
-      <div class="slide-brand">R.A.M.O.T. Consulting Group</div>
-    </div>
-  </div>
-
-  </body></html>`;
-
-  // Remove any existing print iframe
-  const existingProp = document.getElementById('prop-print-iframe');
-  if (existingProp) existingProp.remove();
-
-  const propIframe = document.createElement('iframe');
-  propIframe.id = 'prop-print-iframe';
-  propIframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:none;';
-  document.body.appendChild(propIframe);
-
-  const propDoc = propIframe.contentDocument || propIframe.contentWindow.document;
-  propDoc.open();
-  propDoc.write(proposalHTML);
-  propDoc.close();
-
-  propIframe.onload = function() {
-    setTimeout(() => {
-      propIframe.contentWindow.focus();
-      propIframe.contentWindow.print();
-    }, 800);
+  const prospect = {
+    contactName:   contact,
+    contactTitle:  '',
+    companyName:   company,
+    coverSubtitle: scope.split(',').slice(0,3).join(', '),
+    date,
+    aboutText:     heard || `${company} is seeking professional financial services from R.A.M.O.T. Consulting Group.`,
+    needsBullets:  scope.split(',').map(s => s.trim()).filter(Boolean).slice(0,4),
+    stats: [
+      ['Industry', industry || 'To be confirmed'],
+      ['Services', serviceLines.length + ' service areas'],
+    ],
+    col1, col2, col3,
+    services: services.length ? services : [{ iconName:'FaChartLine', label: scope || 'Professional Services', desc:'' }],
+    packages,
+    onboarding: {
+      price: '',
+      items: ['Onboarding & setup', 'System access & review', 'Initial assessment'],
+      note: 'One-time fee confirmed at engagement start.'
+    },
+    steps: [
+      { num:'01', title:'Review This Proposal', desc:'Take time to review the scope and pricing. We are happy to adjust based on your feedback.' },
+      { num:'02', title:'Schedule a Call',       desc:'A short call to confirm scope, discuss any questions, and align on a start date.' },
+      { num:'03', title:'Engagement Letter',     desc:'We issue a clear engagement letter outlining scope, fees, and terms.' },
+      { num:'04', title:'Kickoff',               desc:'We get to work. Expect a structured onboarding and a clear roadmap from day one.' },
+    ],
   };
-  showToast('Proposal ready — print dialog opening...');
+
+  const btn = document.querySelector('#page-proposal .btn-primary');
+  btn.textContent = 'Generating...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(PROPOSAL_API_URL + '/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': PROPOSAL_API_KEY },
+      body: JSON.stringify(prospect),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Server error' }));
+      throw new Error(err.error || 'Generation failed');
+    }
+
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `Proposal_${company.replace(/[^a-zA-Z0-9]/g,'_')}_RAMOT.pptx`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    showToast('Proposal downloaded!');
+  } catch(err) {
+    console.error('Proposal error:', err);
+    showToast('Error: ' + err.message + ' — check console');
+  } finally {
+    btn.textContent = 'Generate Proposal';
+    btn.disabled = false;
+  }
 }
 
 // ── MODAL ─────────────────────────────────────────────────────────────────────
