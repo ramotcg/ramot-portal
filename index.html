@@ -662,9 +662,10 @@ textarea{resize:vertical;min-height:80px;}
 const ALLOWED_DOMAIN   = 'ramotconsultinggroup.com';
 const PROPOSAL_API_URL = 'https://ramot-proposal-api-production.up.railway.app';
 const PROPOSAL_API_KEY = 'rmp-8x4k-2026-rcg';
+const API_URL   = 'https://ramot-backend-production.up.railway.app';
+const API_KEY   = 'rmp-8x4k-2026-rcg';
 const GOOGLE_CLIENT_ID = '748542419964-cen01poe01durfbdj37c00n660p895v4.apps.googleusercontent.com';
-const SHEET_ID         = '1wlZYmfFOchbr8Wphpriocat6XRJZ_FBKEqqR5yaHitc';
-const SHEETS_SCOPE     = 'https://www.googleapis.com/auth/spreadsheets';
+// Sheets no longer used — backend API handles all data
 
 let currentUser  = null;
 let accessToken  = null;   // Google OAuth access token for Sheets API
@@ -703,80 +704,103 @@ const SEED_CLIENTS = [
   }
 ];
 
-// ── SHEETS API HELPERS ────────────────────────────────────────────────────────
-const SHEET_NAME = 'Clients';
-const SHEET_COLS = ['id','company','contact','email','phone','title','industry','entityType','revenue','employees','software','booksCurrent','services','complexityFactors','drivingNeed','outcomes','budget','billingType','billingAmt','status','start','referralSource','description','notes'];
-
-async function sheetsRequest(method, path, body) {
-  if (!accessToken) return null;
-  const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}${path}`,
-    {
-      method,
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    }
-  );
+// ── BACKEND API HELPERS ───────────────────────────────────────────────────────
+async function apiRequest(method, path, body) {
+  const res = await fetch(API_URL + path, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
   if (!res.ok) {
-    console.error('Sheets API error:', res.status, await res.text());
-    return null;
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'API error');
   }
   return res.json();
 }
 
 async function loadClientsFromSheet() {
-  if (!accessToken || SHEET_ID === 'YOUR_SHEET_ID') {
-    // No token or sheet not configured — use seed data
+  try {
+    // Init DB on first load (idempotent)
+    await fetch(API_URL + '/init', { method:'POST', headers:{'x-api-key':API_KEY,'Content-Type':'application/json'} });
+    await fetch(API_URL + '/seed', { method:'POST', headers:{'x-api-key':API_KEY,'Content-Type':'application/json'} });
+    const data = await apiRequest('GET', '/clients');
+    clients = data.map(c => ({
+      id: c.id,
+      company: c.company || '',
+      contact: c.contact || '',
+      email: c.email || '',
+      phone: c.phone || '',
+      title: c.title || '',
+      industry: c.industry || '',
+      entityType: c.entity_type || '',
+      revenue: c.revenue || '',
+      employees: c.employees || '',
+      software: c.software || '',
+      booksCurrent: c.books_current || '',
+      services: c.services || '',
+      complexityFactors: c.complexity_factors || '',
+      drivingNeed: c.driving_need || '',
+      outcomes: c.outcomes || '',
+      budget: c.budget || '',
+      billingType: c.billing_type || 'retainer',
+      billingAmt: c.billing_amt || '',
+      status: c.status || 'prospect',
+      start: c.start_date || '',
+      referralSource: c.referral_source || '',
+      description: c.description || '',
+      notes: c.notes || '',
+    }));
+  } catch(e) {
+    console.error('Failed to load from API, using seed data:', e);
     clients = [...SEED_CLIENTS];
-    return;
   }
-  showToast('Loading clients...');
-  const data = await sheetsRequest('GET', `/values/${SHEET_NAME}!A:X`);
-  if (!data || !data.values || data.values.length < 2) {
-    // Sheet is empty — seed it with ATN Inc
-    clients = [...SEED_CLIENTS];
-    await saveAllClientsToSheet();
-    return;
-  }
-  // Skip header row, map rows to client objects
-  // Pad rows to full length in case trailing empty cells are omitted by Sheets API
-  clients = data.values.slice(1).map(row => {
-    const padded = [...row, ...Array(SHEET_COLS.length).fill('')].slice(0, SHEET_COLS.length);
-    const obj = {};
-    SHEET_COLS.forEach((col, i) => { obj[col] = padded[i] || ''; });
-    return obj;
-  });
-}
-
-async function saveAllClientsToSheet() {
-  if (!accessToken || SHEET_ID === 'YOUR_SHEET_ID') return;
-  const rows = [SHEET_COLS, ...clients.map(c => SHEET_COLS.map(col => c[col] || ''))];
-  await sheetsRequest('PUT', `/values/${SHEET_NAME}!A1?valueInputOption=RAW`, { values: rows });
 }
 
 async function appendClientToSheet(client) {
-  if (!accessToken || SHEET_ID === 'YOUR_SHEET_ID') return;
-  const row = [SHEET_COLS.map(col => client[col] || '')];
-  await sheetsRequest('POST', `/values/${SHEET_NAME}!A1:K1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, { values: row });
+  try {
+    const res = await apiRequest('POST', '/clients', {
+      company: client.company, contact: client.contact, email: client.email,
+      phone: client.phone, title: client.title, industry: client.industry,
+      entity_type: client.entityType, revenue: client.revenue,
+      employees: client.employees, software: client.software,
+      books_current: client.booksCurrent, services: client.services,
+      complexity_factors: client.complexityFactors, driving_need: client.drivingNeed,
+      outcomes: client.outcomes, budget: client.budget,
+      billing_type: client.billingType, billing_amt: client.billingAmt,
+      status: client.status, start_date: client.start,
+      referral_source: client.referralSource, description: client.description,
+      notes: client.notes,
+    });
+    // Update local ID with server-assigned UUID
+    client.id = res.id;
+  } catch(e) { console.error('Failed to save client:', e); }
 }
 
 async function updateClientInSheet(client) {
-  if (!accessToken || SHEET_ID === 'YOUR_SHEET_ID') return;
-  // Find the row number for this client
-  const idx = clients.findIndex(c => c.id === client.id);
-  if (idx < 0) return;
-  const rowNum = idx + 2; // +1 for header, +1 for 1-based index
-  const row = [SHEET_COLS.map(col => client[col] || '')];
-  await sheetsRequest('PUT', `/values/${SHEET_NAME}!A${rowNum}:K${rowNum}?valueInputOption=RAW`, { values: row });
+  try {
+    await apiRequest('PUT', `/clients/${client.id}`, {
+      company: client.company, contact: client.contact, email: client.email,
+      phone: client.phone, title: client.title, industry: client.industry,
+      entity_type: client.entityType, revenue: client.revenue,
+      employees: client.employees, software: client.software,
+      books_current: client.booksCurrent, services: client.services,
+      complexity_factors: client.complexityFactors, driving_need: client.drivingNeed,
+      outcomes: client.outcomes, budget: client.budget,
+      billing_type: client.billingType, billing_amt: client.billingAmt,
+      status: client.status, start_date: client.start,
+      referral_source: client.referralSource, description: client.description,
+      notes: client.notes,
+    });
+  } catch(e) { console.error('Failed to update client:', e); }
 }
 
 async function deleteClientFromSheet(id) {
-  if (!accessToken || SHEET_ID === 'YOUR_SHEET_ID') return;
-  // Re-save all clients (easiest approach for small datasets)
-  await saveAllClientsToSheet();
+  try {
+    await apiRequest('DELETE', `/clients/${id}`);
+  } catch(e) { console.error('Failed to delete client:', e); }
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
@@ -801,7 +825,7 @@ function initGoogleAuth(tokenOnly) {
     // Use token client flow instead of One Tap — shows full account picker
     const tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: 'openid email profile ' + SHEETS_SCOPE,
+      scope: 'openid email profile',
       prompt: 'select_account',
       callback: (tokenResponse) => {
         if (tokenResponse.error) {
@@ -844,7 +868,7 @@ function initGoogleAuth(tokenOnly) {
     // User already logged in — silently get a fresh Sheets token
     const tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: 'openid email profile ' + SHEETS_SCOPE,
+      scope: 'openid email profile',
       prompt: '',
       callback: (tokenResponse) => {
         if (!tokenResponse.error) accessToken = tokenResponse.access_token;
@@ -871,7 +895,7 @@ function handleGoogleAuth(response) {
   // Request Sheets access token
   const tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
-    scope: SHEETS_SCOPE,
+    scope: 'openid email profile',
     callback: (tokenResponse) => {
       if (tokenResponse.error) { showToast('Failed to get Sheets access.'); return; }
       accessToken = tokenResponse.access_token;
@@ -938,21 +962,30 @@ function showPage(id) {
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
-function renderDashboard() {
+async function renderDashboard() {
   const d = new Date();
   document.getElementById('dash-date').textContent = d.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-  const active = clients.filter(c=>c.status==='active');
-  const prospects = clients.filter(c=>c.status==='prospect');
-  document.getElementById('stat-active').textContent = active.length;
-  document.getElementById('stat-prospects').textContent = prospects.length;
-  document.getElementById('stat-total').textContent = clients.length;
-  // MRR calc
-  let mrr = 0;
-  active.forEach(c => {
-    const m = c.billingAmt.match(/[\d,]+/);
-    if (m && c.billingType === 'retainer') mrr += parseInt(m[0].replace(/,/g,''));
-  });
-  document.getElementById('stat-mrr').textContent = mrr > 0 ? '$' + mrr.toLocaleString() : '$0';
+  // Try to get live stats from backend
+  try {
+    const stats = await apiRequest('GET', '/dashboard');
+    document.getElementById('stat-active').textContent = stats.clients.active;
+    document.getElementById('stat-prospects').textContent = stats.clients.prospects;
+    document.getElementById('stat-total').textContent = stats.clients.total;
+    document.getElementById('stat-mrr').textContent = stats.mrr > 0 ? '$' + Number(stats.mrr).toLocaleString() : '$0';
+  } catch(e) {
+    // Fallback to local calc
+    const active = clients.filter(c=>c.status==='active');
+    const prospects = clients.filter(c=>c.status==='prospect');
+    document.getElementById('stat-active').textContent = active.length;
+    document.getElementById('stat-prospects').textContent = prospects.length;
+    document.getElementById('stat-total').textContent = clients.length;
+    let mrr = 0;
+    active.forEach(c => {
+      const m = (c.billingAmt||'').match(/[\d,]+/);
+      if (m && c.billingType === 'retainer') mrr += parseInt(m[0].replace(/,/g,''));
+    });
+    document.getElementById('stat-mrr').textContent = mrr > 0 ? '$' + mrr.toLocaleString() : '$0';
+  }
   // Table
   const tbody = document.getElementById('dash-client-table');
   tbody.innerHTML = '';
