@@ -782,7 +782,7 @@ const ALLOWED_DOMAIN   = 'ramotconsultinggroup.com';
 const PROPOSAL_API_URL = 'https://ramot-proposal-api-production.up.railway.app';
 const PROPOSAL_API_KEY = 'rmp-8x4k-2026-rcg';
 const API_URL   = 'https://ramot-backend-production.up.railway.app';
-const API_KEY   = 'rmp-8x4k-2026-rcg';
+// Auth handled via Google OAuth token (no hardcoded key in frontend)
 const GOOGLE_CLIENT_ID = '748542419964-cen01poe01durfbdj37c00n660p895v4.apps.googleusercontent.com';
 // Sheets no longer used — backend API handles all data
 
@@ -825,12 +825,13 @@ const SEED_CLIENTS = [
 
 // ── BACKEND API HELPERS ───────────────────────────────────────────────────────
 async function apiRequest(method, path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (accessToken) {
+    headers['Authorization'] = 'Bearer ' + accessToken;
+  }
   const res = await fetch(API_URL + path, {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': API_KEY,
-    },
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
