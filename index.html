@@ -200,6 +200,17 @@ textarea{resize:vertical;min-height:80px;}
 .tab-count{display:inline-block;background:var(--lgray);color:var(--gray);border-radius:10px;font-size:10px;padding:1px 7px;margin-left:6px;font-weight:500;}
 .client-tab.active .tab-count{background:var(--copper);color:var(--cream);}
 
+/* ── INVOICES ─────────────────────────────────────────────────── */
+.invoice-status-badge{display:inline-block;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:20px;font-weight:500;}
+.status-draft{background:rgba(107,101,96,0.12);color:var(--gray);}
+.status-sent{background:rgba(26,39,68,0.12);color:var(--navy);}
+.status-paid{background:rgba(46,125,82,0.12);color:#2E7D52;}
+.status-overdue{background:rgba(192,57,43,0.12);color:#C0392B;}
+.invoice-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px;}
+.invoice-stat{background:var(--white);border:1px solid var(--lgray);border-radius:3px;padding:20px;border-top:3px solid var(--copper);}
+.invoice-stat-val{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;color:var(--navy);}
+.invoice-stat-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gray);margin-top:4px;}
+
 /* ── TIME TRACKING ───────────────────────────────────────────── */
 .utilization-bar{height:6px;background:var(--lgray);border-radius:3px;overflow:hidden;margin-top:6px;}
 .utilization-fill{height:100%;border-radius:3px;transition:width 0.4s ease;}
@@ -300,6 +311,10 @@ textarea{resize:vertical;min-height:80px;}
       <div class="nav-item" onclick="showPage('proposal')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
         <span>Proposal Generator</span>
+      </div>
+      <div class="nav-item" onclick="showPage('invoices');loadInvoices();">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span>Invoices</span>
       </div>
       <div class="nav-item" onclick="showPage('time')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -554,6 +569,56 @@ textarea{resize:vertical;min-height:80px;}
       </div>
     </div>
 
+    <!-- INVOICES -->
+    <div class="page" id="page-invoices">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;">
+        <div>
+          <div class="page-label">Billing</div>
+          <div class="page-title">Invoices</div>
+          <div class="page-sub">Create, send, and track invoices for all clients.</div>
+        </div>
+        <button class="btn btn-primary" onclick="openCreateInvoiceModal()" style="margin-top:8px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Invoice
+        </button>
+      </div>
+
+      <!-- Stats -->
+      <div class="invoice-stats">
+        <div class="invoice-stat"><div class="invoice-stat-val" id="inv-stat-outstanding">$0</div><div class="invoice-stat-label">Outstanding</div></div>
+        <div class="invoice-stat"><div class="invoice-stat-val" id="inv-stat-overdue">$0</div><div class="invoice-stat-label">Overdue</div></div>
+        <div class="invoice-stat"><div class="invoice-stat-val" id="inv-stat-collected">$0</div><div class="invoice-stat-label">Collected This Month</div></div>
+        <div class="invoice-stat"><div class="invoice-stat-val" id="inv-stat-count">0</div><div class="invoice-stat-label">Total Invoices</div></div>
+      </div>
+
+      <!-- Filter tabs -->
+      <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--lgray);padding-bottom:0;">
+        <button class="inv-tab active" onclick="filterInvoices('all',this)" style="padding:8px 20px;background:none;border:none;border-bottom:2px solid var(--copper);font-family:'Jost',sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--navy);cursor:pointer;">All</button>
+        <button class="inv-tab" onclick="filterInvoices('draft',this)" style="padding:8px 20px;background:none;border:none;border-bottom:2px solid transparent;font-family:'Jost',sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--gray);cursor:pointer;">Draft</button>
+        <button class="inv-tab" onclick="filterInvoices('sent',this)" style="padding:8px 20px;background:none;border:none;border-bottom:2px solid transparent;font-family:'Jost',sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--gray);cursor:pointer;">Sent</button>
+        <button class="inv-tab" onclick="filterInvoices('paid',this)" style="padding:8px 20px;background:none;border:none;border-bottom:2px solid transparent;font-family:'Jost',sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--gray);cursor:pointer;">Paid</button>
+        <button class="inv-tab" onclick="filterInvoices('overdue',this)" style="padding:8px 20px;background:none;border:none;border-bottom:2px solid transparent;font-family:'Jost',sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#C0392B;cursor:pointer;">Overdue</button>
+      </div>
+
+      <!-- Invoice table -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Client</th>
+              <th>Description</th>
+              <th>Amount</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="invoices-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- TIME TRACKING -->
     <div class="page" id="page-time">
       <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;">
@@ -722,6 +787,77 @@ textarea{resize:vertical;min-height:80px;}
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0 1.1.9 2 2 2z"/><polyline points="22,6 12,13 2,6"/></svg>
         Generate Link & Open Gmail Draft
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- CREATE INVOICE MODAL -->
+<div class="modal-overlay" id="modal-create-invoice">
+  <div class="modal" style="width:700px;">
+    <div class="modal-header">
+      <div class="modal-title">New Invoice</div>
+      <button class="modal-close" onclick="closeModal('modal-create-invoice')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Client</label>
+          <select id="inv-client" onchange="updateInvoiceClientCode()">
+            <option value="">— Select client —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Client Code</label>
+          <input type="text" id="inv-client-code" placeholder="ATN1" maxlength="6"/>
+        </div>
+        <div class="form-group">
+          <label>Invoice Type</label>
+          <select id="inv-type" onchange="updateInvoiceDefaults()">
+            <option value="retainer">Monthly Retainer</option>
+            <option value="project">Project / One-off</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Amount</label>
+          <input type="number" id="inv-amount" placeholder="7500" step="0.01"/>
+        </div>
+        <div class="form-group">
+          <label>Payment Terms</label>
+          <select id="inv-terms">
+            <option value="due_on_receipt">Due Upon Receipt</option>
+            <option value="net_15">Net 15</option>
+            <option value="net_30">Net 30</option>
+            <option value="net_60">Net 60</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Invoice Date</label>
+          <input type="date" id="inv-date"/>
+        </div>
+        <div class="form-group">
+          <label>Due Date</label>
+          <input type="date" id="inv-due-date"/>
+        </div>
+        <div class="form-group full">
+          <label>Description</label>
+          <textarea id="inv-description" placeholder="e.g. Monthly retainer — Fractional CFO, Bookkeeping & Accounting Compliance services for June 2026" style="height:70px;"></textarea>
+        </div>
+        <div class="form-group full" style="background:var(--cream2);border-radius:3px;padding:16px;">
+          <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--copper);margin-bottom:8px;">Payment Instructions (shown on invoice)</div>
+          <div style="font-size:13px;color:var(--navy);line-height:1.7;">
+            Please remit payment via ACH or wire transfer:<br/>
+            <strong>Bank:</strong> [Your Bank Name]<br/>
+            <strong>Routing #:</strong> [Routing Number]<br/>
+            <strong>Account #:</strong> [Account Number]<br/>
+            <strong>Payable to:</strong> R.A.M.O.T. Consulting Group
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeModal('modal-create-invoice')">Cancel</button>
+      <button class="btn btn-outline btn-sm" onclick="saveInvoice('draft')">Save as Draft</button>
+      <button class="btn btn-primary btn-sm" onclick="saveInvoice('sent')">Create & Send</button>
     </div>
   </div>
 </div>
@@ -2295,7 +2431,223 @@ document.querySelectorAll('.nav-item').forEach(n => {
   if (oc && oc.includes("'time'")) {
     n.setAttribute('onclick', "showPage('time');loadTimeData();");
   }
+  if (oc && oc.includes("'invoices'")) {
+    n.setAttribute('onclick', "showPage('invoices');loadInvoices();");
+  }
 });
+
+// ── INVOICES ──────────────────────────────────────────────────────────────────
+let invoices = [];
+let invoiceFilter = 'all';
+
+function generateClientCode(company) {
+  // Auto-generate 4-char code from company name + 1
+  const words = company.replace(/[^a-zA-Z ]/g, '').split(' ').filter(Boolean);
+  let code = '';
+  if (words.length >= 2) {
+    code = (words[0].slice(0,2) + words[1].slice(0,1)).toUpperCase();
+  } else {
+    code = words[0].slice(0,3).toUpperCase();
+  }
+  return code + '1';
+}
+
+function updateInvoiceClientCode() {
+  const clientId = document.getElementById('inv-client').value;
+  const client = clients.find(c => c.id === clientId);
+  if (!client) return;
+  // Auto-fill code and amount from client record
+  document.getElementById('inv-client-code').value = generateClientCode(client.company);
+  if (client.billingType === 'retainer' && client.billingAmt) {
+    const match = client.billingAmt.match(/[\d,]+/);
+    if (match) document.getElementById('inv-amount').value = match[0].replace(/,/g,'');
+  }
+  // Auto-fill description
+  const now = new Date();
+  const monthName = now.toLocaleDateString('en-US', {month:'long', year:'numeric'});
+  document.getElementById('inv-description').value = `Monthly retainer — ${client.services || 'Professional services'} for ${monthName}`;
+}
+
+function updateInvoiceDefaults() {
+  const type = document.getElementById('inv-type').value;
+  const terms = document.getElementById('inv-terms');
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0];
+  document.getElementById('inv-date').value = dateStr;
+
+  if (type === 'retainer') {
+    terms.value = 'due_on_receipt';
+    // Due date = today for retainers
+    document.getElementById('inv-due-date').value = dateStr;
+  } else {
+    terms.value = 'net_30';
+    const due = new Date(now);
+    due.setDate(due.getDate() + 30);
+    document.getElementById('inv-due-date').value = due.toISOString().split('T')[0];
+  }
+}
+
+function openCreateInvoiceModal(clientId) {
+  // Populate client dropdown
+  const sel = document.getElementById('inv-client');
+  sel.innerHTML = '<option value="">— Select client —</option>' +
+    clients.map(c => `<option value="${c.id}" ${c.id === clientId ? 'selected' : ''}>${c.company}</option>`).join('');
+
+  // Set defaults
+  updateInvoiceDefaults();
+  document.getElementById('inv-client-code').value = '';
+  document.getElementById('inv-amount').value = '';
+  document.getElementById('inv-description').value = '';
+
+  if (clientId) {
+    updateInvoiceClientCode();
+  }
+
+  openModal('modal-create-invoice');
+}
+
+async function saveInvoice(status) {
+  const clientId = document.getElementById('inv-client').value;
+  const clientCode = document.getElementById('inv-client-code').value.trim().toUpperCase();
+  const amount = parseFloat(document.getElementById('inv-amount').value);
+  const description = document.getElementById('inv-description').value.trim();
+  const dueDate = document.getElementById('inv-due-date').value;
+
+  if (!clientId) { showToast('Please select a client.'); return; }
+  if (!clientCode) { showToast('Please enter a client code.'); return; }
+  if (!amount || amount <= 0) { showToast('Please enter a valid amount.'); return; }
+
+  // Generate invoice number: CLIENTCODE-0001
+  const clientInvoices = invoices.filter(i => i.invoice_number && i.invoice_number.startsWith(clientCode));
+  const nextNum = String(clientInvoices.length + 1).padStart(4, '0');
+  const invoiceNumber = `${clientCode}-${nextNum}`;
+
+  const invoice = {
+    client_id: clientId,
+    invoice_number: invoiceNumber,
+    amount,
+    description,
+    due_date: dueDate,
+    status,
+  };
+
+  try {
+    const saved = await apiRequest('POST', '/invoices', invoice);
+    invoices.unshift({ ...saved, company: clients.find(c => c.id === clientId)?.company || '' });
+    closeModal('modal-create-invoice');
+    showToast(`Invoice ${invoiceNumber} ${status === 'draft' ? 'saved as draft' : 'created'}.`);
+    renderInvoicesTable();
+    renderInvoiceStats();
+  } catch(e) {
+    // Offline fallback
+    const local = { id: Date.now().toString(), ...invoice, company: clients.find(c => c.id === clientId)?.company || '' };
+    invoices.unshift(local);
+    closeModal('modal-create-invoice');
+    showToast(`Invoice ${invoiceNumber} saved (offline).`);
+    renderInvoicesTable();
+    renderInvoiceStats();
+  }
+}
+
+async function loadInvoices() {
+  try {
+    const data = await apiRequest('GET', '/invoices');
+    invoices = data.map(i => ({
+      ...i,
+      company: clients.find(c => c.id === i.client_id)?.company || i.company || '',
+    }));
+  } catch(e) {
+    console.log('Invoices API offline');
+  }
+  renderInvoicesTable();
+  renderInvoiceStats();
+}
+
+function renderInvoiceStats() {
+  const outstanding = invoices.filter(i => i.status === 'sent').reduce((s,i) => s + parseFloat(i.amount||0), 0);
+  const overdue = invoices.filter(i => i.status === 'overdue').reduce((s,i) => s + parseFloat(i.amount||0), 0);
+  const now = new Date();
+  const collected = invoices.filter(i => {
+    if (i.status !== 'paid') return false;
+    const d = new Date(i.paid_date || i.updated_at);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).reduce((s,i) => s + parseFloat(i.amount||0), 0);
+
+  document.getElementById('inv-stat-outstanding').textContent = '$' + outstanding.toLocaleString();
+  document.getElementById('inv-stat-overdue').textContent = '$' + overdue.toLocaleString();
+  document.getElementById('inv-stat-collected').textContent = '$' + collected.toLocaleString();
+  document.getElementById('inv-stat-count').textContent = invoices.length;
+}
+
+function filterInvoices(status, btn) {
+  invoiceFilter = status;
+  document.querySelectorAll('.inv-tab').forEach(t => {
+    t.style.borderBottomColor = 'transparent';
+    t.style.color = status === 'overdue' && t === btn ? '#C0392B' : (t === btn ? 'var(--navy)' : 'var(--gray)');
+  });
+  btn.style.borderBottomColor = status === 'overdue' ? '#C0392B' : 'var(--copper)';
+  renderInvoicesTable();
+}
+
+async function markInvoicePaid(id) {
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    await apiRequest('PUT', `/invoices/${id}`, { status: 'paid', paid_date: today });
+  } catch(e) {}
+  const inv = invoices.find(i => i.id === id);
+  if (inv) { inv.status = 'paid'; inv.paid_date = today; }
+  renderInvoicesTable();
+  renderInvoiceStats();
+  showToast('Invoice marked as paid.');
+}
+
+async function markInvoiceSent(id) {
+  try {
+    await apiRequest('PUT', `/invoices/${id}`, { status: 'sent' });
+  } catch(e) {}
+  const inv = invoices.find(i => i.id === id);
+  if (inv) inv.status = 'sent';
+  renderInvoicesTable();
+  renderInvoiceStats();
+  showToast('Invoice marked as sent.');
+}
+
+function renderInvoicesTable() {
+  const tbody = document.getElementById('invoices-table-body');
+  if (!tbody) return;
+
+  let filtered = invoiceFilter === 'all' ? invoices : invoices.filter(i => i.status === invoiceFilter);
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--gray);font-size:13px;">No invoices${invoiceFilter !== 'all' ? ' with status: ' + invoiceFilter : ''}.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(inv => {
+    const statusClass = `status-${inv.status}`;
+    const amount = parseFloat(inv.amount || 0).toLocaleString('en-US', {style:'currency', currency:'USD', minimumFractionDigits:0});
+    const dueDate = inv.due_date ? new Date(inv.due_date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '—';
+
+    let actions = '';
+    if (inv.status === 'draft') {
+      actions = `<button class="btn btn-outline btn-sm" onclick="markInvoiceSent('${inv.id}')">Mark Sent</button>`;
+    } else if (inv.status === 'sent' || inv.status === 'overdue') {
+      actions = `<button class="btn btn-primary btn-sm" onclick="markInvoicePaid('${inv.id}')">Mark Paid</button>`;
+    } else if (inv.status === 'paid') {
+      actions = `<span style="font-size:11px;color:#2E7D52;">✓ Paid</span>`;
+    }
+
+    return `<tr class="client-row">
+      <td><strong>${inv.invoice_number || '—'}</strong></td>
+      <td>${inv.company || '—'}</td>
+      <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--gray);">${inv.description || '—'}</td>
+      <td><strong>${amount}</strong></td>
+      <td style="color:var(--gray);font-size:12px;">${dueDate}</td>
+      <td><span class="invoice-status-badge ${statusClass}">${inv.status}</span></td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
+}
 
 // ── TIME TRACKING ─────────────────────────────────────────────────────────────
 const RATES = { 'Avi Mafouda': 200, 'Cobi Goldman': 200, 'Carmen Peña': 50 };
