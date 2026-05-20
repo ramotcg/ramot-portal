@@ -925,7 +925,7 @@ async function deleteClientFromSheet(id) {
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 window.onload = function() {
   // Check sessionStorage for existing session
-  const saved = sessionStorage.getItem('ramot_user');
+  const saved = localStorage.getItem('ramot_user');
   if (saved) {
     currentUser = JSON.parse(saved);
     // Still need a fresh access token — initiate token-only flow
@@ -967,7 +967,7 @@ function initGoogleAuth(tokenOnly) {
             email: profile.email,
             initials: (nameParts[0][0] + (nameParts[1] ? nameParts[1][0] : '')).toUpperCase(),
           };
-          sessionStorage.setItem('ramot_user', JSON.stringify(currentUser));
+          localStorage.setItem('ramot_user', JSON.stringify(currentUser));
           bootApp();
         });
       },
@@ -1010,7 +1010,7 @@ function handleGoogleAuth(response) {
     email: payload.email,
     initials: (nameParts[0][0] + (nameParts[1] ? nameParts[1][0] : '')).toUpperCase(),
   };
-  sessionStorage.setItem('ramot_user', JSON.stringify(currentUser));
+  localStorage.setItem('ramot_user', JSON.stringify(currentUser));
   // Request Sheets access token
   const tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
@@ -1041,7 +1041,7 @@ function handleGoogleAuth(response) {
     email: payload.email,
     initials: (nameParts[0][0] + (nameParts[1] ? nameParts[1][0] : '')).toUpperCase(),
   };
-  sessionStorage.setItem('ramot_user', JSON.stringify(currentUser));
+  localStorage.setItem('ramot_user', JSON.stringify(currentUser));
   bootApp();
 }
 
@@ -1065,7 +1065,7 @@ async function bootApp() {
 }
 
 function signOut() {
-  sessionStorage.removeItem('ramot_user');
+  localStorage.removeItem('ramot_user');
   location.reload();
 }
 
