@@ -625,7 +625,7 @@ textarea{resize:vertical;min-height:80px;}
 </div>
 
 <!-- ADD CLIENT MODAL -->
-<div class="modal-overlay" id="modal-add-client">
+<div class="modal-overlay" id="modal-add-client" onpaste="return true;">
   <div class="modal">
     <div class="modal-header">
       <div class="modal-title">Add New Client</div>
@@ -639,6 +639,8 @@ textarea{resize:vertical;min-height:80px;}
         <div class="form-group"><label>Phone</label><input type="tel" id="nc-phone" placeholder="(312) 555-0100"/></div>
         <div class="form-group"><label>Title</label><input type="text" id="nc-title" placeholder="CEO"/></div>
         <div class="form-group"><label>Industry</label><input type="text" id="nc-industry" placeholder="Wholesale Distribution"/></div>
+        <div class="form-group"><label>State</label><input type="text" id="nc-state" placeholder="IL"/></div>
+        <div class="form-group"><label>Referral Source</label><input type="text" id="nc-referral" placeholder="Referral, LinkedIn, Website..."/></div>
         <div class="form-group"><label>Entity Type</label>
           <select id="nc-entity-type">
             <option value="">— Select —</option>
@@ -663,6 +665,8 @@ textarea{resize:vertical;min-height:80px;}
         </div>
         <div class="form-group"><label># of Employees</label><input type="number" id="nc-employees" placeholder="5" min="0"/></div>
         <div class="form-group full"><label>Services</label><input type="text" id="nc-services" placeholder="Accounting & Compliance, Fractional CFO"/></div>
+        <div class="form-group full"><label>Complexity Factors</label><input type="text" id="nc-complexity" placeholder="Inventory / COGS, Multi-state, Payroll..."/></div>
+        <div class="form-group full"><label>Business Description</label><textarea id="nc-description" placeholder="Brief description of the business..."></textarea></div>
         <div class="form-group full"><label>What's Driving the Need</label><textarea id="nc-driving-need" placeholder="Growing fast, need better financial visibility..."></textarea></div>
         <div class="form-group full"><label>Desired Outcomes</label><textarea id="nc-outcomes" placeholder="Clean books, ready for a capital raise..."></textarea></div>
         <div class="form-group"><label>Billing Type</label>
