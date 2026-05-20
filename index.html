@@ -1118,9 +1118,19 @@ function initGoogleAuth(tokenOnly) {
     btn.onclick = () => tokenClient.requestAccessToken({ prompt: 'select_account' });
     signinDiv.appendChild(btn);
   } else {
-    // User already saved in localStorage — boot directly
-    // accessToken will be fetched lazily when Gmail features are used
-    bootApp();
+    // User already saved in localStorage — get a fresh token silently then boot
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: 'openid email profile',
+      prompt: '',
+      callback: (tokenResponse) => {
+        if (!tokenResponse.error) {
+          accessToken = tokenResponse.access_token;
+        }
+        bootApp();
+      },
+    });
+    tokenClient.requestAccessToken({ prompt: '' });
   }
 }
 
