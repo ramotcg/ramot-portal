@@ -842,9 +842,6 @@ async function apiRequest(method, path, body) {
 
 async function loadClientsFromSheet() {
   try {
-    // Init DB on first load (idempotent)
-    await fetch(API_URL + '/init', { method:'POST', headers:{'x-api-key':API_KEY,'Content-Type':'application/json'} });
-    await fetch(API_URL + '/seed', { method:'POST', headers:{'x-api-key':API_KEY,'Content-Type':'application/json'} });
     const data = await apiRequest('GET', '/clients');
     clients = data.map(c => ({
       id: c.id,
@@ -984,17 +981,9 @@ function initGoogleAuth(tokenOnly) {
     btn.onclick = () => tokenClient.requestAccessToken({ prompt: 'select_account' });
     signinDiv.appendChild(btn);
   } else {
-    // User already logged in — silently get a fresh Sheets token
-    const tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: 'openid email profile',
-      prompt: '',
-      callback: (tokenResponse) => {
-        if (!tokenResponse.error) accessToken = tokenResponse.access_token;
-        bootApp();
-      },
-    });
-    tokenClient.requestAccessToken({ prompt: '' });
+    // User already saved in localStorage — boot directly
+    // accessToken will be fetched lazily when Gmail features are used
+    bootApp();
   }
 }
 
